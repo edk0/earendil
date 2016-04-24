@@ -77,14 +77,20 @@ def check_name(name):
         warn('name has invalid characters: {}'.format(name))
     return name
 
+def check_verb(verb):
+    if not verb.upper() == verb: # verbs should be upper case
+        warn('verb not upcased: {}'.format(verb))
+    if verb.isnumeric():
+        # numerics must be 000 formatted
+        if verb != '{:03d}'.format(int(verb)):
+            warn('invalid numeric format: {}'.format(verb))
+        verb = int(verb)
+        # numerics must be within this range
+        if verb <= 0 or verb > 999:
+            warn('invalid numeric code: {}'.format(verb))
+    return verb
+
 def parse_format(fmt, data):
-    # formats should have a title, used as a name
-    if not '{#' in fmt or not fmt.endswith('}'):
-        warn('no name found')
-    fmt, name = fmt.rsplit('{#', 1)
-    fmt = fmt.strip()
-    name = name[:-1]
-    data['name'] = check_name(name)
     data['format'] = fmt
 
     # do our own tokenizing, to force balanced parens but handle : outside
@@ -118,20 +124,11 @@ def parse_format(fmt, data):
     
     verb = tokens[0]
     args = tokens[1:]
-    if not verb.upper() == verb: # verbs should be upper case
-        warn('verb not upcased')
-    if verb.isnumeric():
-        # numerics must be 000 formatted
-        if verb != '{:03d}'.format(int(verb)):
-            warn('invalid numeric format')
-        verb = int(verb)
-        # numerics must be within this range
-        if verb <= 0 or verb > 999:
-            warn('invalid numeric code')
+    data['verb'] = check_verb(verb)
+    if isinstance(data['verb'], int):
         data['type'] = 'numeric'
     else:
         data['type'] = 'text'
-    data['verb'] = verb
 
     associativity = set(['left', 'right'])
     data['arguments'] = []
@@ -167,116 +164,231 @@ def parse_format(fmt, data):
             break
         last_type = arg['type']
 
+section_names = []
+def check_section(title, data):
+    required = ['name']
+    
+    # must have these fields
+    for k in required:
+        if not k in data:
+            warn('required field `{}` missing'.format(k))
+            return None
+
+    # validate name
+    data['name'] = check_name(data['name'])
+    
+    # section names must be unique
+    if data['name'] in section_names:
+        warn('non-unique section name: {}'.format(data['name']))
+    section_names.append(data['name'])
+
+    # add title
+    data['title'] = title
+    
+    return data
+
+message_names = []
+message_verbs = {}
+def check_message(fmt, data):
+    required = ['name']
+    
+    # must have these fields
+    for k in required:
+        if not k in data:
+            warn('required field `{}` missing'.format(k))
+            return None
+
+    # fill in computed details from format
+    parse_format(fmt, data)
+
+    # validate name
+    data['name'] = check_name(data['name'])
+
+    # message names must be unique
+    if data['name'] in message_names:
+        warn('non-unique message name: {}'.format(data['name']))
+    message_names.append(data['name'])
+
+    # message verbs must be unique
+    if data['verb'] in message_verbs:
+        warn('non-unique verb: {}'.format(data['verb']))
+    message_verbs[data['verb']] = data['name']
+
+    # related is a comma-seperated list
+    if 'related' in data:
+        data['related'] = [check_verb(r.strip()) for r in data['related'].split(',')]
+
+    # only refer to section by name
+    data['section'] = data['section']['name']
+
+    return data
+
+def check_version(ver, data):
+    if not '.' in ver:
+        warn('invalid version format')
+        return (0, 0)
+    maj, min = ver.split('.', 1)
+    if not maj.isnumeric() or not min.isnumeric():
+        warn('invalid version format')
+        return (0, 0)
+    return (int(maj), int(min))
+
+def check_whole(data):
+    # make sure all related verbs actually exist
+    # and resolve them into names
+    for msg in data['messages']:
+        resolved_rel = []
+        for rel in msg.get('related', []):
+            if not rel in message_verbs:
+                warn('unknown related verb for {}: {}'.format(msg['verb'], rel))
+            else:
+                resolved_rel.append(message_verbs[rel])
+        if resolved_rel:
+            msg['related'] = resolved_rel
+    
+    return data
+
 def create_description(f, fname):
-    gather = {}
-    section = None
     lineno = 0
-    lastfmtno = 0
-    docs = ''
-    related = []
-    l = None
-    data = []
-    names = []
-    verbs = []
+    lastheaderno = 0
+    room_for_header = True
+    sections = []
+    messages = []
     version = None
 
+    header = None
+    gather = {}
+
+    fields = {
+        'Version': [],
+        'Section': ['name', 'url'],
+        'Message': ['name', 'related', 'documentation'],
+    }
+    
     warnings = 0
     def local_warn(s):
         nonlocal warnings
         warnings += 1
         if 'verb' in gather:
-            print('{}:{}: (verb {}) {}'.format(fname, lastfmtno, gather['verb'], s))
+            print('{}:{}: (verb {}) {}'.format(fname, lastheaderno, gather['verb'], s))
         else:
-            print('{}:{}: {}'.format(fname, lastfmtno, s))
+            print('{}:{}: {}'.format(fname, lastheaderno, s))
 
     global warn
     warn = local_warn
 
     def emit():
-        nonlocal docs, section, gather, data
-        if gather:
-            docs = docs.strip()
-            if docs:
-                gather['documentation'] = docs
-            if related:
-                gather['related'] = related
-            if section is None:
-                # every message must have a section
-                warn('no section here')
-                gather['section'] = 'FIXME no section'
-            else:
-                gather['section'] = section
-            data.append(gather)
-    
+        nonlocal header, gather, sections, messages, version
+        if header is not None:
+            if header[0] == 'Version':
+                if version:
+                    warn('only one version allowed')
+                version = check_version(header[1], gather)
+            elif header[0] == 'Section':
+                section = check_section(header[1], gather)
+                if section:
+                    sections.append(section)
+            elif header[0] == 'Message':
+                if sections:
+                    gather['section'] = sections[-1]
+                    message = check_message(header[1], gather)
+                    if message:
+                        messages.append(message)
+                else:
+                    # every message must have a section
+                    warn('message has no section')
+        header = None
+        gather = {}
+
     for l in f.readlines():
         lineno += 1
-        origl = l
-        l = l.strip()
+        
+        if l.strip().startswith('#'):
+            # comment
+            continue
 
-        if l.startswith('*Version ') and l.endswith('*'):
-            ver = l.split()[1]
-            ver = ver[:-1]
-            if not '.' in ver:
-                warn('invalid version format')
-            else:
-                major, minor = ver.split('.', 1)
-                if not major.isnumeric() or not minor.isnumeric():
-                    warn('invalid version format')
-                else:
-                    version = (int(major), int(minor))
-            
-        if l.startswith('#') and not l.startswith('####'):
+        if not l.strip():
+            # blank
+            room_for_header = True
+            continue
+
+        if not ':' in l:
+            warn('no `:` found')
+            continue
+
+        key, val = l.split(':', 1)
+        key = key.strip()
+        val = val.strip()
+
+        if key in fields:
+            # new header
             emit()
-            gather = {}
-            docs = ''
-            related = []
-
-        if l.startswith('## '):
-            _, section = l.split(' ', 1)
-
-        if l.startswith('### '):
-            _, fmt = l.split(' ', 1)
-            lastfmtno = lineno
-            parse_format(fmt, gather)
-            # message names must be unique
-            if gather['name'] in names:
-                warn('non-unique name: {}'.format(gather['name']))
-            names.append(gather['name'])
-            # message verbs must be unique
-            if gather['verb'] in verbs:
-                warn('non-unique verb: {}'.format(gather['verb']))
-            verbs.append(gather['verb'])
+            lastheaderno = lineno
+            header = (key, val)
+            if not room_for_header:
+                warn('need whitespace before new header')
+        elif header is not None and key in fields[header[0]]:
+            gather[key] = val
         else:
-            if l.startswith('Related: '):
-                related_l = l.split(': ', 2)[1]
-                if related_l.endswith('.'):
-                    related_l = related_l[:-1]
-                related = related_l.split(', ')
-                related = [(int(r) if r.isnumeric() else r) for r in related]
-            else:
-                docs += origl
+            warn('invalid key in this location: {}'.format(key))
+        room_for_header = False
     emit()
 
-    # make sure all related verbs actually exist
-    for msg in data:
-        for rel in msg.get('related', []):
-            if not rel in verbs:
-                warn('unknown related verb for {}: {}'.format(msg['verb'], rel))
-
-    if version is None:
+    if not version:
         warn('no version found')
+        version = (0, 0)
 
-    if warnings > 0:
-        return None
-    ret = {}
-    ret['messages'] = data
-    ret['version-major'], ret['version-minor'] = version
-    return ret
+    data = {}
+    data['major-version'], data['minor-version'] = version
+    data['sections'] = sections
+    data['messages'] = messages
+
+    return check_whole(data)
+
+def data_to_markdown(data, f):
+    f.write("""
+# Earendil IRC Protocol Specification
+
+*Version {major-version}.{minor-version}*
+
+This document compiles the information in [RFC 2812][] in a straightforward way, derived from a concise but human-editable definition. There is also a JSON version of this document, suitable for use in code generation.
+
+  [RFC 2812]: https://tools.ietf.org/html/rfc2812
+
+The messages in this document are divided into sections, corresponding to sections of the RFC.
+
+[TOC]
+    """.strip().format(**data))
+    f.write('\n\n')
+    
+    for section in data['sections']:
+        f.write('## {} {{#section-{}}}\n\n'.format(section['title'], section['name']))
+        for msg in data['messages']:
+            if msg['section'] != section['name']:
+                continue
+
+            f.write('### {} {{#msg-{}}}\n'.format(msg['format'], msg['name']))
+            f.write('Name: *{}*\n\n'.format(msg['name']))
+
+            if 'related' in msg:
+                f.write('Related: ')
+                first = True
+                for rel in msg['related']:
+                    if not first:
+                        f.write(', ')
+                    first = False
+                    f.write('*[{0}](#msg-{0})*'.format(rel))
+                f.write('.\n\n')
+
+            if 'documentation' in msg:
+                f.write(msg['documentation'])
+                f.write('\n')
 
 p = argparse.ArgumentParser()
 p.add_argument('input', type=argparse.FileType('r'))
 p.add_argument('-j', '--json', type=argparse.FileType('w'))
 p.add_argument('-m', '--markdown', type=argparse.FileType('w'))
+p.add_argument('--html', type=argparse.FileType('w'))
 
 if __name__ == "__main__":
     args = p.parse_args()
@@ -289,8 +401,15 @@ if __name__ == "__main__":
 
     if args.json:
         json.dump(data, args.json, indent=2)
+        args.json.write('\n')
 
     if args.markdown:
+        data_to_markdown(data, args.markdown)
+
+    if args.html:
         import markdown
-        html = markdown.markdown(inp, extensions=['extra', 'toc'], safe_mode='escape')
-        args.markdown.write(html + '\n')
+        out = io.StringIO()
+        data_to_markdown(data, out)
+        html = markdown.markdown(out.getvalue(), extensions=['extra', 'toc'], safe_mode='escape')
+        args.html.write(html)
+        args.html.write('\n')

@@ -23,7 +23,7 @@ def load_protocol_data():
     # FIXME better file finding
     with open('protocol.json') as f:
         data = json.load(f)
-        if data['version-major'] != 0:
+        if data['major-version'] != 0:
             raise ImportError('cannot find useful protocol data')
         return data['messages']
 

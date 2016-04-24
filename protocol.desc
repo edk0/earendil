@@ -1,0 +1,620 @@
+Version: 0.0
+
+Section: 3.1 Connection Registration
+name: connection
+
+Message: PASS <password>
+name: pass
+related: 461, 462
+
+Message: NICK <nickname>
+name: nick
+related: 431, 432, 433, 436, 437, 484
+
+Message: USER <user> <int:mode> * <realname>
+name: user
+related: 461, 462
+
+Message: OPER <name> <password>
+name: oper
+related: 461, 381, 491, 464
+
+Message: MODE <name> <mode>
+name: mode
+related: 461, 467, 477, 482, 441, 472, 502, 501, 324, 367, 368, 348, 349, 346, 347, 325, 221
+documentation: FIXME multiples.
+
+Message: SERVICE <nickname> * <distribution> <int:type> 0 <info>
+name: service
+related: 462, 461, 432, 383, 002, 004
+
+Message: QUIT [message]
+name: quit
+
+Message: SQUIT <server> <comment>
+name: s-quit
+related: 481, 402, 461
+
+Section: 3.2 Channel Operations
+name: channels
+
+Message: JOIN <channels,> [keys,]
+name: channel-join
+related: 461, 474, 473, 475, 471, 476, 403, 405, 407, 437, 332
+
+Message: PART <channels,> [message]
+name: channel-part
+related: 461, 403, 442
+
+Message: TOPIC <channel> [topic]
+name: topic
+related: 461, 442, 331, 332, 482, 477
+
+Message: NAMES [channels,] [target]
+name: names
+related: 402, 353, 366
+
+Message: LIST [channels,] [target]
+name: list
+related: 402, 322, 323
+
+Message: INVITE <nickname> <channel>
+name: invite
+related: 461, 401, 442, 443, 482, 341, 301
+
+Message: KICK <channels,> <users,> [comment]
+name: kick
+related: 461, 403, 476, 482, 441, 442
+
+Section: 3.3 Sending Messages
+name: messages
+
+Message: PRIVMSG <target> <message>
+name: privmsg
+related: 411, 412, 404, 413, 414, 407, 401, 301
+
+Message: NOTICE <target> <message>
+name: notice
+related: 411, 412, 404, 413, 414, 407, 401, 301
+
+Section: 3.4 MOTD Message
+name: motd
+
+Message: MOTD [target]
+name: motd
+related: 375, 372, 376, 422
+
+Message: LUSERS [mask] [target]
+name: lusers
+related: 251, 252, 253, 254, 255, 402
+
+Message: VERSION [target]
+name: version
+related: 402, 351
+
+Message: STATS [query] [target]
+name: stats
+related: 402, 211, 242, 212, 243, 219
+
+Message: LINKS (server) (mask)
+name: links
+related: 402, 364, 365
+
+Message: TIME [target]
+name: time
+related: 402, 391
+
+Message: CONNECT <target> <int:port> [remote]
+name: server-connect
+related: 402, 481, 461
+
+Message: TRACE [target]
+name: trace
+related: 402, 200, 201, 202, 203, 204, 205, 206, 207, 208, 209, 261, 262
+
+Message: ADMIN [target]
+name: admin
+related: 402, 256, 257, 258, 259
+
+Message: INFO [target]
+name: info
+related: 402, 371, 374
+
+Section: 3.5 Service Query and Commands
+name: services
+
+Message: SERVLIST [mask] [type]
+name: serv-list
+related: 234, 235
+
+Message: SQUERY <servicename> <text>
+name: s-query
+related: 411, 412, 404, 413, 414, 407, 401, 301
+
+Section: 3.6 User Based Queries
+name: users
+
+Message: WHO [mask] [flag(o):operators]
+name: who
+related: 402, 352, 315
+
+Message: WHOIS [target] <masks,>
+name: who-is
+related: 402, 431, 311, 319, 312, 301, 313, 317, 401, 318
+
+Message: WHOWAS <nicknames,> [int:count] [target]
+name: who-was
+related: 431, 406, 314, 312, 369
+
+Section: 3.7 Miscellaneous Messages
+name: misc
+
+Message: KILL <nickname> <comment>
+name: kill
+related: 481, 461, 401, 483
+
+Message: PING <server1> [server2]
+name: ping
+related: 409, 402
+
+Message: PONG <server> [server2]
+name: pong
+related: 409, 402
+
+Message: ERROR <message>
+name: error
+
+Section: 4 Optional Features
+name: optional
+
+Message: AWAY [text]
+name: away
+related: 305, 306
+
+Message: REHASH
+name: rehash
+related: 382, 481
+
+Message: DIE
+name: die
+related: 481
+
+Message: RESTART
+name: restart
+related: 481
+
+Message: SUMMON <user> [target] [channel]
+name: summon
+related: 411, 424, 444, 402, 445, 342
+
+Message: USERS [target]
+name: users
+related: 402, 424, 392, 393, 395, 394, 446
+
+Message: WALLOPS <message>
+name: wall-ops
+related: 461
+
+Message: USERHOST <nickname>
+name: user-host
+related: 302, 461
+documentation: FIXME many nicknames.
+
+Message: ISON <nickname>
+name: is-on
+related: 303, 461
+documentation: FIXME many nicknames.
+
+Section: 5.1 Command Responses
+name: responses
+
+Message: 001 <target> <message>
+name: welcome
+
+Message: 002 <target> <message>
+name: your-host
+
+Message: 003 <target> <message>
+name: created
+
+Message: 004 <target> <message>
+name: my-info
+
+Message: 005 <target> <message>
+name: bounce
+
+Message: 200 <target> Link <version> <destination> <next> <protocol-version> <link-uptime> <back-send-q> <up-send-q>
+name: trace-link-reply
+
+Message: 201 <target> Try. <class> <server>
+name: trace-connecting
+
+Message: 202 <target> H.S. <class> <server>
+name: trace-handshake
+
+Message: 203 <target> ???? <class> [ip]
+name: trace-unknown
+
+Message: 204 <target> Oper <class> <nickname>
+name: trace-operator
+
+Message: 205 <target> User <class> <nickname>
+name: trace-user
+
+Message: 206 <target> Serv <class> <s> <c> <server> <hostmask> <protocol-version>
+name: trace-server
+
+Message: 207 <target> Service <class> <name> <type> <active-type>
+name: trace-service
+
+Message: 208 <target> <newtype> 0 <name>
+name: trace-newtype
+
+Message: 209 <target> Class <class> <int:count>
+name: trace-class
+
+Message: 211 <target> <name> <sendq> <int:sent-messages> <int:sent-kbytes> <int:recv-messages> <int:recv-kbytes> <int:uptime>
+name: stats-link-info
+
+Message: 212 <target> <command> <int:count> <int:bytes> <int:remote-count>
+name: stats-commands
+
+Message: 219 <target> <letter> :End of STATS report
+name: stats-end
+
+Message: 221 <target> <mode>
+name: user-mode-is
+
+Message: 234 <target> <name> <server> <mask> <type> <int:hopcount> <info>
+name: serv-list-reply
+
+Message: 235 <target> <mask> <type> :End of service listing
+name: serv-list-end
+
+Message: 242 <target> <message>
+name: stats-uptime
+
+Message: 243 <target> O <hostmask> * <name>
+name: stats-oline
+
+Message: 251 <target> <message>
+name: luser-client
+
+Message: 252 <target> <int:count> :operator(s) online
+name: luser-op
+
+Message: 253 <target> <int:count> :unknown connection(s)
+name: luser-unknown
+
+Message: 254 <target> <int:count> :channels formed
+name: luser-channels
+
+Message: 255 <target> <message>
+name: luser-me
+
+Message: 256 <target> <server> :Administrative info
+name: admin-me
+
+Message: 257 <target> <message>
+name: admin-loc1
+
+Message: 258 <target> <message>
+name: admin-loc2
+
+Message: 259 <target> <email>
+name: admin-email
+
+Message: 261 <target> File <logfile> <debug-level>
+name: trace-log
+
+Message: 262 <target> <server> <version> :End of TRACE
+name: trace-end
+
+Message: 263 <target> <command> :Please wait a while and try again.
+name: try-again
+
+Message: 301 <target> <nickname> <message>
+name: away-reply
+
+Message: 302 <target> <message>
+name: user-host-reply
+documentation: FIXME parse data!
+
+Message: 303 <target> <message>
+name: is-on-reply
+documentation: FIXME parse data!
+
+Message: 305 <target> :You are no longer marked as being away
+name: unaway-reply
+
+Message: 306 <target> :You have been marked as being away
+name: now-away-reply
+
+Message: 311 <target> <nickname> <user> <host> * <realname>
+name: who-is-user
+
+Message: 312 <target> <nickname> <server> <info>
+name: who-is-server
+
+Message: 313 <target> <nickname> :is an IRC operator
+name: who-is-operator
+
+Message: 314 <target> <nickname> <user> <host> * <realname>
+name: who-was-user
+
+Message: 315 <target> <name> :End of WHO list
+name: who-end
+
+Message: 317 <target> <nickname> <int:time> :seconds idle
+name: who-is-idle
+
+Message: 318 <target> <nickname> :End of WHOIS list
+name: who-is-end
+
+Message: 319 <target> <nickname> <channels>
+name: who-is-channels
+
+Message: 322 <target> <channel> <int:visible> <topic>
+name: list-reply
+
+Message: 323 <target> :End of LIST
+name: list-end
+
+Message: 324 <target> <channel> <mode> <params>
+name: channel-mode-is
+
+Message: 325 <target> <channel> <nickname>
+name: uniq-op-is
+
+Message: 331 <target> <channel> :No topic is set
+name: no-topic-reply
+
+Message: 332 <target> <channel> <topic>
+name: topic-reply
+
+Message: 341 <target> <channel> <nick>
+name: inviting
+
+Message: 342 <target> <user> :Summoning user to IRC
+name: summoning
+
+Message: 346 <target> <channel> <mask>
+name: invite-list
+
+Message: 347 <target> <channel> :End of channel invite list
+name: invite-list-end
+
+Message: 348 <target> <channel> <mask>
+name: except-list
+
+Message: 349 <target> <channel> :End of channel exception list
+name: except-list-end
+
+Message: 351 <target> <version> <server> <comments>
+name: version-reply
+
+Message: 352 <target> <channel> <user> <host> <server> <nickname> <props> <realname>
+name: who-reply
+
+Message: 353 <target> <mode> <channel> <nicknames_>
+name: names-reply
+
+Message: 364 <target> <mask> <server> <info>
+name: links-reply
+
+Message: 365 <target> <mask> :End of LINKS list
+name: links-end
+
+Message: 366 <target> <channel> :End of NAMES list
+name: names-end
+
+Message: 367 <target> <channel> <mask>
+name: ban-list
+
+Message: 368 <target> <channel> :End of channel ban list
+name: ban-list-end
+
+Message: 369 <target> <nickname> :End of WHOWAS
+name: who-was-end
+
+Message: 371 <target> <info>
+name: info-reply
+
+Message: 372 <target> <message>
+name: motd-text
+
+Message: 374 <target> :End of INFO list
+name: info-end
+
+Message: 375 <target> <message>
+name: motd-start
+
+Message: 376 <target> :End of MOTD command
+name: motd-end
+
+Message: 381 <target> :You are now an IRC operator
+name: youre-oper
+
+Message: 382 <target> <file> Rehashing
+name: rehashing
+
+Message: 383 <target> <message>
+name: youre-service
+
+Message: 391 <target> <server> <time>
+name: time-reply
+
+Message: 392 <target> :UserID   Terminal  Host
+name: users-start
+
+Message: 393 <target> <message>
+name: users-reply
+
+Message: 394 <target> :End of users
+name: users-end
+
+Message: 395 <target> :Nobody logged in
+name: no-users
+
+Section: 5.2 Error Replies
+name: errors
+
+Message: 401 <target> <nickname> :No such nick/channel
+name: no-such-nick
+
+Message: 402 <target> <server> :No such server
+name: no-such-server
+
+Message: 403 <target> <channel> :No such channel
+name: no-such-channel
+
+Message: 404 <target> <channel> :Cannot send to channel
+name: cant-send-to-chan
+
+Message: 405 <target> <channel> :You have joined too many channels
+name: too-many-channels
+
+Message: 406 <target> <nickname> :There was no such nickname
+name: was-no-such-nick
+
+Message: 407 <target> <orig-target> <message>
+name: too-many-targets
+
+Message: 408 <target> <name> :No such service
+name: no-such-service
+
+Message: 409 <target> :No origin specified
+name: no-origin
+
+Message: 411 <target> :No recipient given
+name: no-recipient
+
+Message: 412 <target> :No text to send
+name: no-text-to-send
+
+Message: 413 <target> <mask> :No toplevel domain specified
+name: no-top-level
+
+Message: 414 <target> <mask> :Wildcard in toplevel domain
+name: wild-top-level
+
+Message: 415 <target> <mask> :Bad Server/host mask
+name: bad-mask
+
+Message: 421 <target> <command> :Unknown command
+name: unknown-command
+
+Message: 422 <target> :MOTD File is missing
+name: no-motd
+
+Message: 423 <target> <server> :No administrative info available
+name: no-admin-info
+
+Message: 424 <target> <message>
+name: file-error
+
+Message: 431 <target> :No nickname given
+name: no-nickname-given
+
+Message: 432 <target> <nickname> :Erroneous nickname
+name: erroneus-nickname
+
+Message: 433 <target> <nickname> :Nickname is already in use
+name: nickname-in-use
+
+Message: 436 <target> <nickname> <message>
+name: nick-collision
+
+Message: 437 <target> <name> :Nick/channel is temporarily unavailable
+name: unavail-resource
+
+Message: 441 <target> <nickname> <channel> :They aren't on that channel
+name: user-not-in-channel
+
+Message: 442 <target> <channel> :You're not on that channel
+name: not-on-channel
+
+Message: 443 <target> <user> <channel> :is already on channel
+name: user-on-channel
+
+Message: 444 <target> <user> :User not logged in
+name: no-login
+
+Message: 445 <target> :SUMMON has been disabled
+name: summon-disabled
+
+Message: 446 <target> :USERS has been disabled
+name: users-disabled
+
+Message: 451 <target> :You have not registered
+name: not-registered
+
+Message: 461 <target> <command> :Not enough parameters
+name: need-more-params
+
+Message: 462 <target> :Unauthorized command (already registered)
+name: already-registered
+
+Message: 463 <target> :Your host isn't among the privileged
+name: no-perm-for-host
+
+Message: 464 <target> :Password incorrect
+name: password-mismatch
+
+Message: 465 <target> :You are banned from this server
+name: youre-banned-creep
+
+Message: 466 <target>
+name: you-will-be-banned
+
+Message: 467 <target> <channel> :Channel key already set
+name: key-set
+
+Message: 471 <target> <channel> :Cannot join channel (+l)
+name: channel-is-full
+
+Message: 472 <target> <char> :is unknown mode char to me
+name: unknown-mode
+
+Message: 473 <target> <channel> :Cannot join channel (+i)
+name: invite-only-chan
+
+Message: 474 <target> <channel> :Cannot join channel (+b)
+name: banned-from-chan
+
+Message: 475 <target> <channel> :Cannot join channel (+k)
+name: bad-channel-key
+
+Message: 476 <target> <channel> :Bad Channel Mask
+name: bad-chan-mask
+
+Message: 477 <target> <channel> :Channel doesn't support modes
+name: no-chan-modes
+
+Message: 478 <target> <channel> <char> :Channel list is full
+name: ban-list-full
+
+Message: 481 <target> :Permission Denied- You're not an IRC operator
+name: no-privileges
+
+Message: 482 <target> <channel> :You're not channel operator
+name: chan-op-privs-needed
+
+Message: 483 <target> :You can't kill a server!
+name: cant-kill-server
+
+Message: 484 <target> :Your connection is restricted!
+name: restricted
+
+Message: 485 <target> :You're not the original channel operator
+name: uniq-op-privs-needed
+
+Message: 491 <target> :No O-lines for your host
+name: no-oper-host
+
+Message: 501 <target> :Unknown MODE flag
+name: user-mode-unknown-flag
+
+Message: 502 <target> :Cannot change mode for other users
+name: users-dont-match
+
