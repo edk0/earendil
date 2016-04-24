@@ -1,4 +1,6 @@
-# The IRC Protocol
+# Earendil IRC Protocol Specification
+
+*Version 0.0*
 
 [TOC]
 

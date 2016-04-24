@@ -85,6 +85,7 @@ def parse_format(fmt, data):
     fmt = fmt.strip()
     name = name[:-1]
     data['name'] = check_name(name)
+    data['format'] = fmt
 
     # do our own tokenizing, to force balanced parens but handle : outside
     tokens = []
@@ -175,6 +176,7 @@ def create_description(f, fname):
     l = None
     data = []
     names = []
+    version = None
 
     warnings = 0
     def local_warn(s):
@@ -206,6 +208,18 @@ def create_description(f, fname):
         lineno += 1
         origl = l
         l = l.strip()
+
+        if l.startswith('*Version ') and l.endswith('*'):
+            ver = l.split()[1]
+            ver = ver[:-1]
+            if not '.' in ver:
+                warn('invalid version format')
+            else:
+                major, minor = ver.split('.', 1)
+                if not major.isnumeric() or not minor.isnumeric():
+                    warn('invalid version format')
+                else:
+                    version = (int(major), int(minor))
             
         if l.startswith('#') and not l.startswith('####'):
             emit()
@@ -227,9 +241,15 @@ def create_description(f, fname):
             docs += origl
     emit()
 
+    if version is None:
+        warn('no version found')
+
     if warnings > 0:
         return None
-    return data
+    ret = {}
+    ret['messages'] = data
+    ret['version-major'], ret['version-minor'] = version
+    return ret
 
 p = argparse.ArgumentParser()
 p.add_argument('input', type=argparse.FileType('r'))
@@ -246,7 +266,7 @@ if __name__ == "__main__":
         sys.exit(1)
 
     if args.json:
-        json.dump(dict(version='0.0', messages=data), args.json, indent=2)
+        json.dump(data, args.json, indent=2)
 
     if args.markdown:
         import markdown
