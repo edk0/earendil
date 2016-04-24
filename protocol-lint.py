@@ -173,9 +173,11 @@ def create_description(f, fname):
     lineno = 0
     lastfmtno = 0
     docs = ''
+    related = []
     l = None
     data = []
     names = []
+    verbs = []
     version = None
 
     warnings = 0
@@ -196,6 +198,8 @@ def create_description(f, fname):
             docs = docs.strip()
             if docs:
                 gather['documentation'] = docs
+            if related:
+                gather['related'] = related
             if section is None:
                 # every message must have a section
                 warn('no section here')
@@ -225,6 +229,7 @@ def create_description(f, fname):
             emit()
             gather = {}
             docs = ''
+            related = []
 
         if l.startswith('## '):
             _, section = l.split(' ', 1)
@@ -237,9 +242,26 @@ def create_description(f, fname):
             if gather['name'] in names:
                 warn('non-unique name: {}'.format(gather['name']))
             names.append(gather['name'])
+            # message verbs must be unique
+            if gather['verb'] in verbs:
+                warn('non-unique verb: {}'.format(gather['verb']))
+            verbs.append(gather['verb'])
         else:
-            docs += origl
+            if l.startswith('Related: '):
+                related_l = l.split(': ', 2)[1]
+                if related_l.endswith('.'):
+                    related_l = related_l[:-1]
+                related = related_l.split(', ')
+                related = [(int(r) if r.isnumeric() else r) for r in related]
+            else:
+                docs += origl
     emit()
+
+    # make sure all related verbs actually exist
+    for msg in data:
+        for rel in msg.get('related', []):
+            if not rel in verbs:
+                warn('unknown related verb for {}: {}'.format(msg['verb'], rel))
 
     if version is None:
         warn('no version found')

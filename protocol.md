@@ -2,6 +2,15 @@
 
 *Version 0.0*
 
+This document compiles the information in [RFC 2812][] in a
+straightforward way, along with a tool to extract this information
+into a JSON format suitable for generating code.
+
+The messages in this document are divided into sections, corresponding
+to sections of the RFC.
+
+  [RFC 2812]: https://tools.ietf.org/html/rfc2812
+
 [TOC]
 
 ## How to Read This Document
@@ -24,118 +33,221 @@ Literal text is also mostly ignored, but useful for context.
 
 ## 3.1 Connection Registration
 
+([in the RFC](https://tools.ietf.org/html/rfc2812#section-3.1))
+
 ### PASS <password> {#pass}
+
+Related: 461, 462.
 
 ### NICK <nickname> {#nick}
 
+Related: 431, 432, 433, 436, 437, 484.
+
 ### USER <user> <int:mode> * <realname> {#user}
+
+Related: 461, 462.
 
 ### OPER <name> <password> {#oper}
 
+Related: 461, 381, 491, 464.
+
 ### MODE <name> <mode> {#mode}
+
+Related: 461, 467, 477, 482, 441, 472, 502, 501, 324, 367, 368, 348, 349, 346, 347, 325, 221.
+
 FIXME multiples.
 
 ### SERVICE <nickname> * <distribution> <int:type> 0 <info> {#service}
+
+Related: 462, 461, 432, 383, 002, 004.
 
 ### QUIT [message] {#quit}
 
 ### SQUIT <server> <comment> {#s-quit}
 
+Related: 481, 402, 461.
+
 ## 3.2 Channel Operations
+
+([in the RFC](https://tools.ietf.org/html/rfc2812#section-3.2))
 
 ### JOIN <channels,> [keys,] {#channel-join}
 
+Related: 461, 474, 473, 475, 471, 476, 403, 405, 407, 437, 332.
+
 ### PART <channels,> [message] {#channel-part}
 
-### TOPIC <channel> {#get-topic}
+Related: 461, 403, 442.
 
-### TOPIC <channel> <topic> {#set-topic}
+### TOPIC <channel> [topic] {#topic}
+
+Related: 461, 442, 331, 332, 482, 477.
 
 ### NAMES [channels,] [target] {#names}
 
+Related: 402, 353, 366.
+
 ### LIST [channels,] [target] {#list}
+
+Related: 402, 322, 323.
 
 ### INVITE <nickname> <channel> {#invite}
 
+Related: 461, 401, 442, 443, 482, 341, 301.
+
 ### KICK <channels,> <users,> [comment] {#kick}
+
+Related: 461, 403, 476, 482, 441, 442.
 
 ## 3.3 Sending Messages
 
+([in the RFC](https://tools.ietf.org/html/rfc2812#section-3.3))
+
 ### PRIVMSG <target> <message> {#privmsg}
+
+Related: 411, 412, 404, 413, 414, 407, 401, 301.
 
 ### NOTICE <target> <message> {#notice}
 
+Related: 411, 412, 404, 413, 414, 407, 401, 301.
+
 ## 3.4 MOTD Message
+
+([in the RFC](https://tools.ietf.org/html/rfc2812#section-3.4))
 
 ### MOTD [target] {#motd}
 
+Related: 375, 372, 376, 422.
+
 ### LUSERS [mask] [target] {#lusers}
+
+Related: 251, 252, 253, 254, 255, 402.
 
 ### VERSION [target] {#version}
 
+Related: 402, 351.
+
 ### STATS [query] [target] {#stats}
+
+Related: 402, 211, 242, 212, 243, 219.
 
 ### LINKS (server) (mask) {#links}
 
+Related: 402, 364, 365.
+
 ### TIME [target] {#time}
+
+Related: 402, 391.
 
 ### CONNECT <target> <int:port> [remote] {#server-connect}
 
+Related: 402, 481, 461.
+
 ### TRACE [target] {#trace}
+
+Related: 402, 200, 201, 202, 203, 204, 205, 206, 207, 208, 209, 261, 262.
 
 ### ADMIN [target] {#admin}
 
+Related: 402, 256, 257, 258, 259.
+
 ### INFO [target] {#info}
+
+Related: 402, 371, 374.
 
 ## 3.5 Service Query and Commands
 
+([in the RFC](https://tools.ietf.org/html/rfc2812#section-3.5))
+
 ### SERVLIST [mask] [type] {#serv-list}
+
+Related: 234, 235.
 
 ### SQUERY <servicename> <text> {#s-query}
 
+Related: 411, 412, 404, 413, 414, 407, 401, 301.
+
 ## 3.6 User Based Queries
+
+([in the RFC](https://tools.ietf.org/html/rfc2812#section-3.6))
 
 ### WHO [mask] [flag(o):operators] {#who}
 
+Related: 402, 352, 315.
+
 ### WHOIS [target] <masks,> {#who-is}
+
+Related: 402, 431, 311, 319, 312, 301, 313, 317, 401, 318.
 
 ### WHOWAS <nicknames,> [int:count] [target] {#who-was}
 
+Related: 431, 406, 314, 312, 369.
+
 ## 3.7 Miscellaneous Messages
+
+([in the RFC](https://tools.ietf.org/html/rfc2812#section-3.7))
 
 ### KILL <nickname> <comment> {#kill}
 
+Related: 481, 461, 401, 483.
+
 ### PING <server1> [server2] {#ping}
 
+Related: 409, 402.
+
 ### PONG <server> [server2] {#pong}
+
+Related: 409, 402.
 
 ### ERROR <message> {#error}
 
 ## 4 Optional Features
 
-### AWAY <text> {#set-away}
+([in the RFC](https://tools.ietf.org/html/rfc2812#section-4))
 
-### AWAY {#clear-away}
+### AWAY [text] {#away}
+
+Related: 305, 306.
 
 ### REHASH {#rehash}
 
+Related: 382, 481.
+
 ### DIE {#die}
+
+Related: 481.
 
 ### RESTART {#restart}
 
+Related: 481.
+
 ### SUMMON <user> [target] [channel] {#summon}
+
+Related: 411, 424, 444, 402, 445, 342.
 
 ### USERS [target] {#users}
 
+Related: 402, 424, 392, 393, 395, 394, 446.
+
 ### WALLOPS <message> {#wall-ops}
 
+Related: 461.
+
 ### USERHOST <nickname> {#user-host}
+
+Related: 302, 461.
+
 FIXME many nicknames.
 
 ### ISON <nickname> {#is-on}
+
+Related: 303, 461.
+
 FIXME many nicknames.
 
 ## 5.1 Command Responses
+
+([in the RFC](https://tools.ietf.org/html/rfc2812#section-5.1))
 
 ### 001 <target> <message> {#welcome}
 
@@ -178,6 +290,8 @@ FIXME many nicknames.
 ### 234 <target> <name> <server> <mask> <type> <int:hopcount> <info> {#serv-list-reply}
 
 ### 235 <target> <mask> <type> :End of service listing {#serv-list-end}
+
+### 242 <target> <message> {#stats-uptime}
 
 ### 243 <target> O <hostmask> * <name> {#stats-oline}
 
@@ -302,6 +416,8 @@ FIXME parse data!
 ### 395 <target> :Nobody logged in {#no-users}
 
 ## 5.2 Error Replies
+
+([in the RFC](https://tools.ietf.org/html/rfc2812#section-5.2))
 
 ### 401 <target> <nickname> :No such nick/channel {#no-such-nick}
 
