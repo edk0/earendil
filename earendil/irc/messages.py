@@ -1,5 +1,6 @@
 import json
 import inspect
+import os.path
 
 __all__ = ['Message']
 
@@ -21,7 +22,9 @@ def name_snake(n):
 
 def load_protocol_data():
     # FIXME better file finding
-    with open('protocol.json') as f:
+    here = os.path.split(__file__)[0]
+    datapath = os.path.join(here, '..', '..', 'messages.json')
+    with open(datapath) as f:
         data = json.load(f)
         if data['major-version'] != 0:
             raise ImportError('cannot find useful protocol data')
