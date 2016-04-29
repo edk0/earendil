@@ -3,7 +3,6 @@
 import argparse
 import json
 import sys
-import io
 
 warn = None
 
@@ -345,71 +344,14 @@ def create_description(f, fname):
 
     return check_whole(data)
 
-def data_to_markdown(data, f):
-    f.write("""
-# Earendil IRC Protocol Specification
-
-*Version {major-version}.{minor-version}*
-
-This document compiles the information in [RFC 2812][] in a straightforward way, derived from a concise but human-editable definition. There is also a JSON version of this document, suitable for use in code generation.
-
-  [RFC 2812]: https://tools.ietf.org/html/rfc2812
-
-The messages in this document are divided into sections, corresponding to sections of the RFC.
-
-[TOC]
-    """.strip().format(**data))
-    f.write('\n\n')
-    
-    for section in data['sections']:
-        f.write('## {} {{#section-{}}}\n\n'.format(section['title'], section['name']))
-        for msg in data['messages']:
-            if msg['section'] != section['name']:
-                continue
-
-            f.write('### {} {{#msg-{}}}\n'.format(msg['format'], msg['name']))
-            f.write('Name: *{}*\n\n'.format(msg['name']))
-
-            if 'related' in msg:
-                f.write('Related: ')
-                first = True
-                for rel in msg['related']:
-                    if not first:
-                        f.write(', ')
-                    first = False
-                    f.write('*[{0}](#msg-{0})*'.format(rel))
-                f.write('.\n\n')
-
-            if 'documentation' in msg:
-                f.write(msg['documentation'])
-                f.write('\n')
-
 p = argparse.ArgumentParser()
 p.add_argument('input', type=argparse.FileType('r'))
-p.add_argument('-j', '--json', type=argparse.FileType('w'))
-p.add_argument('-m', '--markdown', type=argparse.FileType('w'))
-p.add_argument('--html', type=argparse.FileType('w'))
+p.add_argument('output', type=argparse.FileType('w'))
 
 if __name__ == "__main__":
     args = p.parse_args()
-    inp = args.input.read()
-
-    f = io.StringIO(inp)
-    data = create_description(f, args.input.name)
+    data = create_description(args.input, args.input.name)
     if data is None:
         sys.exit(1)
-
-    if args.json:
-        json.dump(data, args.json, indent=2)
-        args.json.write('\n')
-
-    if args.markdown:
-        data_to_markdown(data, args.markdown)
-
-    if args.html:
-        import markdown
-        out = io.StringIO()
-        data_to_markdown(data, out)
-        html = markdown.markdown(out.getvalue(), extensions=['extra', 'toc'], safe_mode='escape')
-        args.html.write(html)
-        args.html.write('\n')
+    json.dump(data, args.output, indent=2)
+    args.output.write('\n')
