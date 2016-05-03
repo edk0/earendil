@@ -1,52 +1,63 @@
 import collections
 import re
+from typing import TypeVar, Generic, Callable, Dict, List, Union
 
 __all__ = ['Line', 'parse_line', 'unparse_line']
 
 Line = collections.namedtuple('Line', ['source', 'command', 'arguments', 'ctcp'])
 
-class Isomorphism:
-    # in the loosest terms...
-    @staticmethod
-    def simple(forward, backward):
-        iso = Isomorphism.__new__(Isomorphism)
-        iso.forward = forward
-        iso.backward = backward
-        return iso
+A = TypeVar('A')
+B = TypeVar('B')
+C = TypeVar('C')
+D = TypeVar('D')
 
-    def compose(self, other):
-        def fwd(x):
-            return other.forward(self.forward(x))
-        def bwd(x):
-            return self.backward(other.backward(x))
-        return Isomorphism.simple(fwd, bwd)
+class Isomorphism(Generic[A, B]):
+    def forward(self, x: A) -> B:
+        raise NotImplementedError("forward")
+
+    def backward(self, x: B) -> A:
+        raise NotImplementedError("backward")
+    
+    def compose(self, other: 'Isomorphism[B, C]') -> 'Isomorphism[A, C]':
+        return Composed(self, other)
+
+class Composed(Isomorphism[A, C], Generic[A, C]):
+    def __init__(self, a: Isomorphism[A, B], b: Isomorphism[B, C]) -> None:
+        self.a = a
+        self.b = b
+
+    def forward(self, x: A) -> C:
+        return self.b.forward(self.a.forward(x))
+
+    def backward(self, x: C) -> A:
+        return self.a.backward(self.b.backward(x))
 
 # forward : friendly -> encoded
 # backward: encoded  -> friendly
 
-class Liner(Isomorphism):
-    def forward(self, unlined):
+class Liner(Isomorphism[bytes, bytes]):
+    def forward(self, unlined: bytes) -> bytes:
         return unlined + b'\r\n'
-    def backward(self, lined):
+    def backward(self, lined: bytes) -> bytes:
         if not lined.endswith(b'\r\n'):
             raise ValueError("invalid line")
         return lined[:-2]
 
-class Quoter(Isomorphism):
-    def __init__(self, quote, codemap):
+class Quoter(Isomorphism[bytes, bytes]):
+    def __init__(self, quote: bytes, codemap: Dict[bytes, bytes]) -> None:
         self.quote = quote
         self.codemap = codemap
         requote = re.escape(quote)
         self.unquoter = re.compile(requote + b'(.)', re.DOTALL)
     
-    def forward(self, unquoted):
+    def forward(self, unquoted: bytes) -> bytes:
         s = unquoted.replace(self.quote, self.quote + self.quote)
         for code, char in self.codemap.items():
             s = s.replace(char, self.quote + code)
         return s
 
-    def backward(self, quoted):
-        def replacer(matchobj):
+    def backward(self, quoted: bytes) -> bytes:
+        def replacer(matchobj: 're.Match') -> bytes:
             c = matchobj.group(1)
             return self.codemap.get(c, c)
         return self.unquoter.sub(replacer, quoted)
@@ -57,13 +68,13 @@ low_level = Quoter(b'\020', {
     b'r': b'\r',
 })
 
-class Tagger(Isomorphism):
-    def __init__(self, delim=b'\001'):
+class Tagger(Isomorphism[List[bytes], bytes]):
+    def __init__(self, delim: bytes = b'\001') -> None:
         self.delim = delim
         redelim = re.escape(delim)
         self.untagger = re.compile(redelim + b'(.*?)' + redelim, re.DOTALL)
 
-    def forward(self, tags):
+    def forward(self, tags: List[bytes]) -> bytes:
         if not tags:
             raise ValueError("need at least one tag")
         if any(self.delim in t for t in tags):
@@ -73,29 +84,31 @@ class Tagger(Isomorphism):
             base += self.delim + t + self.delim
         return base
 
-    def backward(self, base):
+    def backward(self, base: bytes) -> List[bytes]:
         tags = []
-        def replacer(matchobj):
+        def replacer(matchobj: 're.Match') -> bytes:
             tags.append(matchobj.group(1))
             return b''
         base = self.untagger.sub(replacer, base)
         tags.insert(0, base)
         return tags
 
-class Map(Isomorphism):
-    def __init__(self, inner):
+class Lift(Isomorphism[A, B], Generic[A, B]):
+    def __init__(self, inner: Isomorphism[C, D], up: Callable[[Callable[[C], D], A], B], down: Callable[[Callable[[D], C], B], A]) -> None:
         self.inner = inner
-    def forward(self, l):
-        return [self.inner.forward(x) for x in l]
-    def backward(self, l):
-        return [self.inner.backward(x) for x in l]
+        self.up = up
+        self.down = down
+    def forward(self, l: A) -> B:
+        return self.up(self.inner.forward, l)
+    def backward(self, l: B) -> A:
+        return self.down(self.inner.backward, l)
 
 ctcp_level = Quoter(b'\\', {
     b'a': b'\001',
 })
 
-class Protocol(Isomorphism):
-    def forward(self, line):
+class Protocol(Isomorphism[Line, List[bytes]]):
+    def forward(self, line: Line) -> List[bytes]:
         s = b''
         if line.source:
             s = b':' + line.source + b' '
@@ -118,20 +131,20 @@ class Protocol(Isomorphism):
             s += last
         return [s] + line.ctcp
 
-    def backward(self, tags):
+    def backward(self, tags: List[bytes]) -> Line:
         if not tags:
             raise ValueError('need at least one tag')
         line = tags[0].lstrip()
 
         source = None
         if line.startswith(b':'):
-            line = line.split(maxsplit=1)
+            lineparts = line.split(maxsplit=1)
             if len(line) > 1:
-                source, line = line
+                source, line = lineparts
                 source = source[1:]
                 line = line.lstrip()
             else:
-                line = line[0]
+                line = lineparts[0]
         
         last = None
         if b' :' in line:
@@ -142,23 +155,24 @@ class Protocol(Isomorphism):
 
         if not line:
             raise ValueError("invalid irc line")
-        line = line.split()
+        lineparts = line.split()
         if last is not None:
-            line.append(last)
+            lineparts.append(last)
         
-        command = line[0]
+        command = lineparts[0] # type: Union[bytes, int]
         try:
             command = int(command)
         except ValueError:
-            command = command.upper()
-        line = line[1:]
+            if isinstance(command, bytes):
+                command = command.upper()
+        lineparts = lineparts[1:]
 
-        return Line(source, command, line, tags[1:])
+        return Line(source, command, lineparts, tags[1:])
 
-full_stack = Protocol().compose(Map(ctcp_level)).compose(Tagger()).compose(low_level).compose(Liner())
+full_stack = Protocol().compose(Lift(ctcp_level, lambda f, l: list(map(f, l)), lambda f, l: list(map(f, l)))).compose(Tagger()).compose(low_level).compose(Liner())
 
-def parse_line(line):
+def parse_line(line: bytes) -> Line:
     return full_stack.backward(line)
 
-def unparse_line(line):
+def unparse_line(line: Line) -> bytes:
     return full_stack.forward(line)

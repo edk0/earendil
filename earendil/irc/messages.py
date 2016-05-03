@@ -1,18 +1,19 @@
 import json
 import inspect
 import os.path
+from typing import Any
 
 __all__ = ['Message']
 
 class Message:
-    __slots__ = []
+    __slots__ = [] # type: List[str]
 
-def name_camel(n):
+def name_camel(n: str) -> str:
     if n == 'class':
         return 'Cls'
     return ''.join(x.capitalize() for x in n.split('-'))
 
-def name_snake(n):
+def name_snake(n: str) -> str:
     # reserved words, either by python or by us
     if n == 'class':
         return 'cls'
@@ -71,7 +72,7 @@ protocol_data = load_protocol_data()
 
 for msg in protocol_data:
     clsname = name_camel(msg['name'])
-    d = {}
+    d = {} # type: Dict[str, Any]
 
     d['__doc__'] = '``{}``\n\n{}'.format(msg['format'], msg.get('documentation', ''))
     d['__slots__'] = [name_snake(arg['name']) for arg in msg['arguments'] if 'name' in arg]
