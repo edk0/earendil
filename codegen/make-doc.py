@@ -3,21 +3,12 @@
 import argparse
 import json
 import io
+import os.path
 
 def data_to_markdown(data, f):
-    f.write("""
-# Earendil IRC Protocol Specification
-
-*Version {major-version}.{minor-version}*
-
-This document compiles the information in [RFC 2812][] in a straightforward way, derived from a concise but human-editable definition. There is also a JSON version of this document, suitable for use in code generation.
-
-  [RFC 2812]: https://tools.ietf.org/html/rfc2812
-
-The messages in this document are divided into sections, corresponding to sections of the RFC.
-
-[TOC]
-    """.strip().format(**data))
+    with open(os.path.join(os.path.split(__file__)[0], 'make-doc.header.md')) as j:
+        header = j.read()
+    f.write(header.format(**data))
     f.write('\n\n')
     
     for section in data['sections']:
