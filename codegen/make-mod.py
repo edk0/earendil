@@ -11,6 +11,7 @@ reserved_words = {
     'cls': 'kls',
     'data': 'dat',
     'source': 'src',
+    'pass': 'passwd',
     'bytes': 'bytecount',
 }
 
@@ -42,6 +43,29 @@ class Indenter:
             self.level -= 1
             if self.level <= 1:
                 self.writeln('')
+
+def make_arglist(msg):
+    initargs = ''
+    kwargs = ''
+    for arg in msg['arguments']:
+        if not 'name' in arg:
+            continue
+        if arg['type'] == 'optional':
+            kwargs += ', {}: {} = None'.format(arg['name'], maketype(arg))
+        else:
+            initargs += ', {}: {}'.format(arg['name'], maketype(arg))
+    initargs += kwargs
+    return initargs
+
+def write_docstring(ind, msg):
+    # docstring (FIXME better docstring)
+    ind.writeln('"""')
+    ind.writeln('``{}``', msg['format'])
+    if 'documentation' in msg:
+        ind.writeln('')
+        ind.writeln(msg['documentation'])
+    ind.writeln('"""')
+    ind.writeln('')
 
 def maketype(arg):
     if arg['type'] == 'str':
@@ -113,19 +137,31 @@ def data_to_module(data, f):
             if 'name' in arg:
                 arg['name'] = name_snake(arg['name'])
 
+    # factory mixin
+    ind.writeln('class MessageFactory:')
+    with ind.indent():
+        ind.writeln('message_source = None # type: str')
+        ind.writeln('def message(self, msg: Message) -> None:')
+        with ind.indent():
+            ind.writeln('raise NotImplementedError("MessageFactory.message")')
+        for msg in data['messages']:
+            initargs = 'self' + make_arglist(msg)
+            ind.writeln('def {}({}) -> None:', msg['name'], initargs)
+            with ind.indent():
+                write_docstring(ind, msg)
+                constrargs = 'self.message_source'
+                for arg in msg['arguments']:
+                    if not 'name' in arg:
+                        continue
+                    constrargs += ', {0}={0}'.format(arg['name'])
+                ind.writeln('self.message({}({}))', msg['clsname'], constrargs)
+
     # classes
     for msg in data['messages']:
         ind.writeln('class {}(Message):', msg['clsname'])
         with ind.indent():
-            # docstring (FIXME better docstring)
-            ind.writeln('"""')
-            ind.writeln('``{}``', msg['format'])
-            if 'documentation' in msg:
-                ind.writeln('')
-                ind.writeln(msg['documentation'])
-            ind.writeln('"""')
-            ind.writeln('')
-
+            write_docstring(ind, msg)
+            
             # slots
             namedargs = [arg for arg in msg['arguments'] if 'name' in arg]
             if namedargs:
@@ -133,14 +169,7 @@ def data_to_module(data, f):
                 ind.writeln('')
 
             # init
-            initargs = 'self, source: str'
-            kwargs = ''
-            for arg in namedargs:
-                if arg['type'] == 'optional':
-                    kwargs += ', {}: {} = None'.format(arg['name'], maketype(arg))
-                else:
-                    initargs += ', {}: {}'.format(arg['name'], maketype(arg))
-            initargs += kwargs
+            initargs = 'self, source: str' + make_arglist(msg)
             ind.writeln('def __init__({}) -> None:', initargs)
             with ind.indent():
                 ind.writeln('self.source = source')

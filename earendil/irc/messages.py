@@ -68,7 +68,1283 @@ class Unknown(Message):
 
 
 
-class Pass(Message):
+class MessageFactory:
+    message_source = None # type: str
+    def message(self, msg: Message) -> None:
+        raise NotImplementedError("MessageFactory.message")
+
+    def passwd(self, password: str) -> None:
+        """
+        ``PASS <password>``
+        """
+
+        self.message(Passwd(self.message_source, password=password))
+
+    def nick(self, nickname: str) -> None:
+        """
+        ``NICK <nickname>``
+        """
+
+        self.message(Nick(self.message_source, nickname=nickname))
+
+    def user(self, user: str, mode: int, realname: str) -> None:
+        """
+        ``USER <user> <int:mode> * <realname>``
+        """
+
+        self.message(User(self.message_source, user=user, mode=mode, realname=realname))
+
+    def oper(self, name: str, password: str) -> None:
+        """
+        ``OPER <name> <password>``
+        """
+
+        self.message(Oper(self.message_source, name=name, password=password))
+
+    def mode(self, name: str, mode: str) -> None:
+        """
+        ``MODE <name> <mode>``
+
+        FIXME multiples.
+        """
+
+        self.message(Mode(self.message_source, name=name, mode=mode))
+
+    def service(self, nickname: str, distribution: str, type: int, info: str) -> None:
+        """
+        ``SERVICE <nickname> * <distribution> <int:type> 0 <info>``
+        """
+
+        self.message(Service(self.message_source, nickname=nickname, distribution=distribution, type=type, info=info))
+
+    def quit(self, message: str = None) -> None:
+        """
+        ``QUIT [message]``
+        """
+
+        self.message(Quit(self.message_source, message=message))
+
+    def s_quit(self, server: str, comment: str) -> None:
+        """
+        ``SQUIT <server> <comment>``
+        """
+
+        self.message(SQuit(self.message_source, server=server, comment=comment))
+
+    def channel_join(self, channels: typing.List[str], keys: typing.List[str] = None) -> None:
+        """
+        ``JOIN <channels,> [keys,]``
+        """
+
+        self.message(ChannelJoin(self.message_source, channels=channels, keys=keys))
+
+    def channel_part(self, channels: typing.List[str], message: str = None) -> None:
+        """
+        ``PART <channels,> [message]``
+        """
+
+        self.message(ChannelPart(self.message_source, channels=channels, message=message))
+
+    def topic(self, channel: str, topic: str = None) -> None:
+        """
+        ``TOPIC <channel> [topic]``
+        """
+
+        self.message(Topic(self.message_source, channel=channel, topic=topic))
+
+    def names(self, channels: typing.List[str] = None, target: str = None) -> None:
+        """
+        ``NAMES [channels,] [target]``
+        """
+
+        self.message(Names(self.message_source, channels=channels, target=target))
+
+    def list(self, channels: typing.List[str] = None, target: str = None) -> None:
+        """
+        ``LIST [channels,] [target]``
+        """
+
+        self.message(List(self.message_source, channels=channels, target=target))
+
+    def invite(self, nickname: str, channel: str) -> None:
+        """
+        ``INVITE <nickname> <channel>``
+        """
+
+        self.message(Invite(self.message_source, nickname=nickname, channel=channel))
+
+    def kick(self, channels: typing.List[str], users: typing.List[str], comment: str = None) -> None:
+        """
+        ``KICK <channels,> <users,> [comment]``
+        """
+
+        self.message(Kick(self.message_source, channels=channels, users=users, comment=comment))
+
+    def privmsg(self, target: str, message: str) -> None:
+        """
+        ``PRIVMSG <target> <message>``
+        """
+
+        self.message(Privmsg(self.message_source, target=target, message=message))
+
+    def notice(self, target: str, message: str) -> None:
+        """
+        ``NOTICE <target> <message>``
+        """
+
+        self.message(Notice(self.message_source, target=target, message=message))
+
+    def motd(self, target: str = None) -> None:
+        """
+        ``MOTD [target]``
+        """
+
+        self.message(Motd(self.message_source, target=target))
+
+    def lusers(self, mask: str = None, target: str = None) -> None:
+        """
+        ``LUSERS [mask] [target]``
+        """
+
+        self.message(Lusers(self.message_source, mask=mask, target=target))
+
+    def version(self, target: str = None) -> None:
+        """
+        ``VERSION [target]``
+        """
+
+        self.message(Version(self.message_source, target=target))
+
+    def stats(self, query: str = None, target: str = None) -> None:
+        """
+        ``STATS [query] [target]``
+        """
+
+        self.message(Stats(self.message_source, query=query, target=target))
+
+    def links(self, server: str = None, mask: str = None) -> None:
+        """
+        ``LINKS (server) (mask)``
+        """
+
+        self.message(Links(self.message_source, server=server, mask=mask))
+
+    def time(self, target: str = None) -> None:
+        """
+        ``TIME [target]``
+        """
+
+        self.message(Time(self.message_source, target=target))
+
+    def server_connect(self, target: str, port: int, remote: str = None) -> None:
+        """
+        ``CONNECT <target> <int:port> [remote]``
+        """
+
+        self.message(ServerConnect(self.message_source, target=target, port=port, remote=remote))
+
+    def trace(self, target: str = None) -> None:
+        """
+        ``TRACE [target]``
+        """
+
+        self.message(Trace(self.message_source, target=target))
+
+    def admin(self, target: str = None) -> None:
+        """
+        ``ADMIN [target]``
+        """
+
+        self.message(Admin(self.message_source, target=target))
+
+    def info(self, target: str = None) -> None:
+        """
+        ``INFO [target]``
+        """
+
+        self.message(Info(self.message_source, target=target))
+
+    def serv_list(self, mask: str = None, type: str = None) -> None:
+        """
+        ``SERVLIST [mask] [type]``
+        """
+
+        self.message(ServList(self.message_source, mask=mask, type=type))
+
+    def s_query(self, servicename: str, text: str) -> None:
+        """
+        ``SQUERY <servicename> <text>``
+        """
+
+        self.message(SQuery(self.message_source, servicename=servicename, text=text))
+
+    def who(self, mask: str = None, operators: bool = None) -> None:
+        """
+        ``WHO [mask] [flag(o):operators]``
+        """
+
+        self.message(Who(self.message_source, mask=mask, operators=operators))
+
+    def who_is(self, masks: typing.List[str], target: str = None) -> None:
+        """
+        ``WHOIS [target] <masks,>``
+        """
+
+        self.message(WhoIs(self.message_source, target=target, masks=masks))
+
+    def who_was(self, nicknames: typing.List[str], count: int = None, target: str = None) -> None:
+        """
+        ``WHOWAS <nicknames,> [int:count] [target]``
+        """
+
+        self.message(WhoWas(self.message_source, nicknames=nicknames, count=count, target=target))
+
+    def kill(self, nickname: str, comment: str) -> None:
+        """
+        ``KILL <nickname> <comment>``
+        """
+
+        self.message(Kill(self.message_source, nickname=nickname, comment=comment))
+
+    def ping(self, server1: str, server2: str = None) -> None:
+        """
+        ``PING <server1> [server2]``
+        """
+
+        self.message(Ping(self.message_source, server1=server1, server2=server2))
+
+    def pong(self, server: str, server2: str = None) -> None:
+        """
+        ``PONG <server> [server2]``
+        """
+
+        self.message(Pong(self.message_source, server=server, server2=server2))
+
+    def error(self, message: str) -> None:
+        """
+        ``ERROR <message>``
+        """
+
+        self.message(Error(self.message_source, message=message))
+
+    def away(self, text: str = None) -> None:
+        """
+        ``AWAY [text]``
+        """
+
+        self.message(Away(self.message_source, text=text))
+
+    def rehash(self) -> None:
+        """
+        ``REHASH``
+        """
+
+        self.message(Rehash(self.message_source))
+
+    def die(self) -> None:
+        """
+        ``DIE``
+        """
+
+        self.message(Die(self.message_source))
+
+    def restart(self) -> None:
+        """
+        ``RESTART``
+        """
+
+        self.message(Restart(self.message_source))
+
+    def summon(self, user: str, target: str = None, channel: str = None) -> None:
+        """
+        ``SUMMON <user> [target] [channel]``
+        """
+
+        self.message(Summon(self.message_source, user=user, target=target, channel=channel))
+
+    def users(self, target: str = None) -> None:
+        """
+        ``USERS [target]``
+        """
+
+        self.message(Users(self.message_source, target=target))
+
+    def wall_ops(self, message: str) -> None:
+        """
+        ``WALLOPS <message>``
+        """
+
+        self.message(WallOps(self.message_source, message=message))
+
+    def user_host(self, nickname: str) -> None:
+        """
+        ``USERHOST <nickname>``
+
+        FIXME many nicknames.
+        """
+
+        self.message(UserHost(self.message_source, nickname=nickname))
+
+    def is_on(self, nickname: str) -> None:
+        """
+        ``ISON <nickname>``
+
+        FIXME many nicknames.
+        """
+
+        self.message(IsOn(self.message_source, nickname=nickname))
+
+    def welcome(self, target: str, message: str) -> None:
+        """
+        ``001 <target> <message>``
+        """
+
+        self.message(Welcome(self.message_source, target=target, message=message))
+
+    def your_host(self, target: str, message: str) -> None:
+        """
+        ``002 <target> <message>``
+        """
+
+        self.message(YourHost(self.message_source, target=target, message=message))
+
+    def created(self, target: str, message: str) -> None:
+        """
+        ``003 <target> <message>``
+        """
+
+        self.message(Created(self.message_source, target=target, message=message))
+
+    def my_info(self, target: str, message: str) -> None:
+        """
+        ``004 <target> <message>``
+        """
+
+        self.message(MyInfo(self.message_source, target=target, message=message))
+
+    def bounce(self, target: str, message: str) -> None:
+        """
+        ``005 <target> <message>``
+        """
+
+        self.message(Bounce(self.message_source, target=target, message=message))
+
+    def trace_link_reply(self, target: str, version: str, destination: str, next: str, protocol_version: str, link_uptime: str, back_send_q: str, up_send_q: str) -> None:
+        """
+        ``200 <target> Link <version> <destination> <next> <protocol-version> <link-uptime> <back-send-q> <up-send-q>``
+        """
+
+        self.message(TraceLinkReply(self.message_source, target=target, version=version, destination=destination, next=next, protocol_version=protocol_version, link_uptime=link_uptime, back_send_q=back_send_q, up_send_q=up_send_q))
+
+    def trace_connecting(self, target: str, klass: str, server: str) -> None:
+        """
+        ``201 <target> Try. <class> <server>``
+        """
+
+        self.message(TraceConnecting(self.message_source, target=target, klass=klass, server=server))
+
+    def trace_handshake(self, target: str, klass: str, server: str) -> None:
+        """
+        ``202 <target> H.S. <class> <server>``
+        """
+
+        self.message(TraceHandshake(self.message_source, target=target, klass=klass, server=server))
+
+    def trace_unknown(self, target: str, klass: str, ip: str = None) -> None:
+        """
+        ``203 <target> ???? <class> [ip]``
+        """
+
+        self.message(TraceUnknown(self.message_source, target=target, klass=klass, ip=ip))
+
+    def trace_operator(self, target: str, klass: str, nickname: str) -> None:
+        """
+        ``204 <target> Oper <class> <nickname>``
+        """
+
+        self.message(TraceOperator(self.message_source, target=target, klass=klass, nickname=nickname))
+
+    def trace_user(self, target: str, klass: str, nickname: str) -> None:
+        """
+        ``205 <target> User <class> <nickname>``
+        """
+
+        self.message(TraceUser(self.message_source, target=target, klass=klass, nickname=nickname))
+
+    def trace_server(self, target: str, klass: str, s: str, c: str, server: str, hostmask: str, protocol_version: str) -> None:
+        """
+        ``206 <target> Serv <class> <s> <c> <server> <hostmask> <protocol-version>``
+        """
+
+        self.message(TraceServer(self.message_source, target=target, klass=klass, s=s, c=c, server=server, hostmask=hostmask, protocol_version=protocol_version))
+
+    def trace_service(self, target: str, klass: str, name: str, type: str, active_type: str) -> None:
+        """
+        ``207 <target> Service <class> <name> <type> <active-type>``
+        """
+
+        self.message(TraceService(self.message_source, target=target, klass=klass, name=name, type=type, active_type=active_type))
+
+    def trace_newtype(self, target: str, newtype: str, name: str) -> None:
+        """
+        ``208 <target> <newtype> 0 <name>``
+        """
+
+        self.message(TraceNewtype(self.message_source, target=target, newtype=newtype, name=name))
+
+    def trace_class(self, target: str, klass: str, count: int) -> None:
+        """
+        ``209 <target> Class <class> <int:count>``
+        """
+
+        self.message(TraceClass(self.message_source, target=target, klass=klass, count=count))
+
+    def stats_link_info(self, target: str, name: str, sendq: str, sent_messages: int, sent_kbytes: int, recv_messages: int, recv_kbytes: int, uptime: int) -> None:
+        """
+        ``211 <target> <name> <sendq> <int:sent-messages> <int:sent-kbytes> <int:recv-messages> <int:recv-kbytes> <int:uptime>``
+        """
+
+        self.message(StatsLinkInfo(self.message_source, target=target, name=name, sendq=sendq, sent_messages=sent_messages, sent_kbytes=sent_kbytes, recv_messages=recv_messages, recv_kbytes=recv_kbytes, uptime=uptime))
+
+    def stats_commands(self, target: str, command: str, count: int, bytecount: int, remote_count: int) -> None:
+        """
+        ``212 <target> <command> <int:count> <int:bytes> <int:remote-count>``
+        """
+
+        self.message(StatsCommands(self.message_source, target=target, command=command, count=count, bytecount=bytecount, remote_count=remote_count))
+
+    def stats_end(self, target: str, letter: str) -> None:
+        """
+        ``219 <target> <letter> :End of STATS report``
+        """
+
+        self.message(StatsEnd(self.message_source, target=target, letter=letter))
+
+    def user_mode_is(self, target: str, mode: str) -> None:
+        """
+        ``221 <target> <mode>``
+        """
+
+        self.message(UserModeIs(self.message_source, target=target, mode=mode))
+
+    def serv_list_reply(self, target: str, name: str, server: str, mask: str, type: str, hopcount: int, info: str) -> None:
+        """
+        ``234 <target> <name> <server> <mask> <type> <int:hopcount> <info>``
+        """
+
+        self.message(ServListReply(self.message_source, target=target, name=name, server=server, mask=mask, type=type, hopcount=hopcount, info=info))
+
+    def serv_list_end(self, target: str, mask: str, type: str) -> None:
+        """
+        ``235 <target> <mask> <type> :End of service listing``
+        """
+
+        self.message(ServListEnd(self.message_source, target=target, mask=mask, type=type))
+
+    def stats_uptime(self, target: str, message: str) -> None:
+        """
+        ``242 <target> <message>``
+        """
+
+        self.message(StatsUptime(self.message_source, target=target, message=message))
+
+    def stats_oline(self, target: str, hostmask: str, name: str) -> None:
+        """
+        ``243 <target> O <hostmask> * <name>``
+        """
+
+        self.message(StatsOline(self.message_source, target=target, hostmask=hostmask, name=name))
+
+    def luser_client(self, target: str, message: str) -> None:
+        """
+        ``251 <target> <message>``
+        """
+
+        self.message(LuserClient(self.message_source, target=target, message=message))
+
+    def luser_op(self, target: str, count: int) -> None:
+        """
+        ``252 <target> <int:count> :operator(s) online``
+        """
+
+        self.message(LuserOp(self.message_source, target=target, count=count))
+
+    def luser_unknown(self, target: str, count: int) -> None:
+        """
+        ``253 <target> <int:count> :unknown connection(s)``
+        """
+
+        self.message(LuserUnknown(self.message_source, target=target, count=count))
+
+    def luser_channels(self, target: str, count: int) -> None:
+        """
+        ``254 <target> <int:count> :channels formed``
+        """
+
+        self.message(LuserChannels(self.message_source, target=target, count=count))
+
+    def luser_me(self, target: str, message: str) -> None:
+        """
+        ``255 <target> <message>``
+        """
+
+        self.message(LuserMe(self.message_source, target=target, message=message))
+
+    def admin_me(self, target: str, server: str) -> None:
+        """
+        ``256 <target> <server> :Administrative info``
+        """
+
+        self.message(AdminMe(self.message_source, target=target, server=server))
+
+    def admin_loc1(self, target: str, message: str) -> None:
+        """
+        ``257 <target> <message>``
+        """
+
+        self.message(AdminLoc1(self.message_source, target=target, message=message))
+
+    def admin_loc2(self, target: str, message: str) -> None:
+        """
+        ``258 <target> <message>``
+        """
+
+        self.message(AdminLoc2(self.message_source, target=target, message=message))
+
+    def admin_email(self, target: str, email: str) -> None:
+        """
+        ``259 <target> <email>``
+        """
+
+        self.message(AdminEmail(self.message_source, target=target, email=email))
+
+    def trace_log(self, target: str, logfile: str, debug_level: str) -> None:
+        """
+        ``261 <target> File <logfile> <debug-level>``
+        """
+
+        self.message(TraceLog(self.message_source, target=target, logfile=logfile, debug_level=debug_level))
+
+    def trace_end(self, target: str, server: str, version: str) -> None:
+        """
+        ``262 <target> <server> <version> :End of TRACE``
+        """
+
+        self.message(TraceEnd(self.message_source, target=target, server=server, version=version))
+
+    def try_again(self, target: str, command: str) -> None:
+        """
+        ``263 <target> <command> :Please wait a while and try again.``
+        """
+
+        self.message(TryAgain(self.message_source, target=target, command=command))
+
+    def away_reply(self, target: str, nickname: str, message: str) -> None:
+        """
+        ``301 <target> <nickname> <message>``
+        """
+
+        self.message(AwayReply(self.message_source, target=target, nickname=nickname, message=message))
+
+    def user_host_reply(self, target: str, message: str) -> None:
+        """
+        ``302 <target> <message>``
+
+        FIXME parse data!
+        """
+
+        self.message(UserHostReply(self.message_source, target=target, message=message))
+
+    def is_on_reply(self, target: str, message: str) -> None:
+        """
+        ``303 <target> <message>``
+
+        FIXME parse data!
+        """
+
+        self.message(IsOnReply(self.message_source, target=target, message=message))
+
+    def unaway_reply(self, target: str) -> None:
+        """
+        ``305 <target> :You are no longer marked as being away``
+        """
+
+        self.message(UnawayReply(self.message_source, target=target))
+
+    def now_away_reply(self, target: str) -> None:
+        """
+        ``306 <target> :You have been marked as being away``
+        """
+
+        self.message(NowAwayReply(self.message_source, target=target))
+
+    def who_is_user(self, target: str, nickname: str, user: str, host: str, realname: str) -> None:
+        """
+        ``311 <target> <nickname> <user> <host> * <realname>``
+        """
+
+        self.message(WhoIsUser(self.message_source, target=target, nickname=nickname, user=user, host=host, realname=realname))
+
+    def who_is_server(self, target: str, nickname: str, server: str, info: str) -> None:
+        """
+        ``312 <target> <nickname> <server> <info>``
+        """
+
+        self.message(WhoIsServer(self.message_source, target=target, nickname=nickname, server=server, info=info))
+
+    def who_is_operator(self, target: str, nickname: str) -> None:
+        """
+        ``313 <target> <nickname> :is an IRC operator``
+        """
+
+        self.message(WhoIsOperator(self.message_source, target=target, nickname=nickname))
+
+    def who_was_user(self, target: str, nickname: str, user: str, host: str, realname: str) -> None:
+        """
+        ``314 <target> <nickname> <user> <host> * <realname>``
+        """
+
+        self.message(WhoWasUser(self.message_source, target=target, nickname=nickname, user=user, host=host, realname=realname))
+
+    def who_end(self, target: str, name: str) -> None:
+        """
+        ``315 <target> <name> :End of WHO list``
+        """
+
+        self.message(WhoEnd(self.message_source, target=target, name=name))
+
+    def who_is_idle(self, target: str, nickname: str, time: int) -> None:
+        """
+        ``317 <target> <nickname> <int:time> :seconds idle``
+        """
+
+        self.message(WhoIsIdle(self.message_source, target=target, nickname=nickname, time=time))
+
+    def who_is_end(self, target: str, nickname: str) -> None:
+        """
+        ``318 <target> <nickname> :End of WHOIS list``
+        """
+
+        self.message(WhoIsEnd(self.message_source, target=target, nickname=nickname))
+
+    def who_is_channels(self, target: str, nickname: str, channels: str) -> None:
+        """
+        ``319 <target> <nickname> <channels>``
+        """
+
+        self.message(WhoIsChannels(self.message_source, target=target, nickname=nickname, channels=channels))
+
+    def list_reply(self, target: str, channel: str, visible: int, topic: str) -> None:
+        """
+        ``322 <target> <channel> <int:visible> <topic>``
+        """
+
+        self.message(ListReply(self.message_source, target=target, channel=channel, visible=visible, topic=topic))
+
+    def list_end(self, target: str) -> None:
+        """
+        ``323 <target> :End of LIST``
+        """
+
+        self.message(ListEnd(self.message_source, target=target))
+
+    def channel_mode_is(self, target: str, channel: str, mode: str, params: str) -> None:
+        """
+        ``324 <target> <channel> <mode> <params>``
+        """
+
+        self.message(ChannelModeIs(self.message_source, target=target, channel=channel, mode=mode, params=params))
+
+    def uniq_op_is(self, target: str, channel: str, nickname: str) -> None:
+        """
+        ``325 <target> <channel> <nickname>``
+        """
+
+        self.message(UniqOpIs(self.message_source, target=target, channel=channel, nickname=nickname))
+
+    def no_topic_reply(self, target: str, channel: str) -> None:
+        """
+        ``331 <target> <channel> :No topic is set``
+        """
+
+        self.message(NoTopicReply(self.message_source, target=target, channel=channel))
+
+    def topic_reply(self, target: str, channel: str, topic: str) -> None:
+        """
+        ``332 <target> <channel> <topic>``
+        """
+
+        self.message(TopicReply(self.message_source, target=target, channel=channel, topic=topic))
+
+    def inviting(self, target: str, channel: str, nick: str) -> None:
+        """
+        ``341 <target> <channel> <nick>``
+        """
+
+        self.message(Inviting(self.message_source, target=target, channel=channel, nick=nick))
+
+    def summoning(self, target: str, user: str) -> None:
+        """
+        ``342 <target> <user> :Summoning user to IRC``
+        """
+
+        self.message(Summoning(self.message_source, target=target, user=user))
+
+    def invite_list(self, target: str, channel: str, mask: str) -> None:
+        """
+        ``346 <target> <channel> <mask>``
+        """
+
+        self.message(InviteList(self.message_source, target=target, channel=channel, mask=mask))
+
+    def invite_list_end(self, target: str, channel: str) -> None:
+        """
+        ``347 <target> <channel> :End of channel invite list``
+        """
+
+        self.message(InviteListEnd(self.message_source, target=target, channel=channel))
+
+    def except_list(self, target: str, channel: str, mask: str) -> None:
+        """
+        ``348 <target> <channel> <mask>``
+        """
+
+        self.message(ExceptList(self.message_source, target=target, channel=channel, mask=mask))
+
+    def except_list_end(self, target: str, channel: str) -> None:
+        """
+        ``349 <target> <channel> :End of channel exception list``
+        """
+
+        self.message(ExceptListEnd(self.message_source, target=target, channel=channel))
+
+    def version_reply(self, target: str, version: str, server: str, comments: str) -> None:
+        """
+        ``351 <target> <version> <server> <comments>``
+        """
+
+        self.message(VersionReply(self.message_source, target=target, version=version, server=server, comments=comments))
+
+    def who_reply(self, target: str, channel: str, user: str, host: str, server: str, nickname: str, props: str, realname: str) -> None:
+        """
+        ``352 <target> <channel> <user> <host> <server> <nickname> <props> <realname>``
+        """
+
+        self.message(WhoReply(self.message_source, target=target, channel=channel, user=user, host=host, server=server, nickname=nickname, props=props, realname=realname))
+
+    def names_reply(self, target: str, mode: str, channel: str, nicknames: typing.List[str]) -> None:
+        """
+        ``353 <target> <mode> <channel> <nicknames_>``
+        """
+
+        self.message(NamesReply(self.message_source, target=target, mode=mode, channel=channel, nicknames=nicknames))
+
+    def links_reply(self, target: str, mask: str, server: str, info: str) -> None:
+        """
+        ``364 <target> <mask> <server> <info>``
+        """
+
+        self.message(LinksReply(self.message_source, target=target, mask=mask, server=server, info=info))
+
+    def links_end(self, target: str, mask: str) -> None:
+        """
+        ``365 <target> <mask> :End of LINKS list``
+        """
+
+        self.message(LinksEnd(self.message_source, target=target, mask=mask))
+
+    def names_end(self, target: str, channel: str) -> None:
+        """
+        ``366 <target> <channel> :End of NAMES list``
+        """
+
+        self.message(NamesEnd(self.message_source, target=target, channel=channel))
+
+    def ban_list(self, target: str, channel: str, mask: str) -> None:
+        """
+        ``367 <target> <channel> <mask>``
+        """
+
+        self.message(BanList(self.message_source, target=target, channel=channel, mask=mask))
+
+    def ban_list_end(self, target: str, channel: str) -> None:
+        """
+        ``368 <target> <channel> :End of channel ban list``
+        """
+
+        self.message(BanListEnd(self.message_source, target=target, channel=channel))
+
+    def who_was_end(self, target: str, nickname: str) -> None:
+        """
+        ``369 <target> <nickname> :End of WHOWAS``
+        """
+
+        self.message(WhoWasEnd(self.message_source, target=target, nickname=nickname))
+
+    def info_reply(self, target: str, info: str) -> None:
+        """
+        ``371 <target> <info>``
+        """
+
+        self.message(InfoReply(self.message_source, target=target, info=info))
+
+    def motd_text(self, target: str, message: str) -> None:
+        """
+        ``372 <target> <message>``
+        """
+
+        self.message(MotdText(self.message_source, target=target, message=message))
+
+    def info_end(self, target: str) -> None:
+        """
+        ``374 <target> :End of INFO list``
+        """
+
+        self.message(InfoEnd(self.message_source, target=target))
+
+    def motd_start(self, target: str, message: str) -> None:
+        """
+        ``375 <target> <message>``
+        """
+
+        self.message(MotdStart(self.message_source, target=target, message=message))
+
+    def motd_end(self, target: str) -> None:
+        """
+        ``376 <target> :End of MOTD command``
+        """
+
+        self.message(MotdEnd(self.message_source, target=target))
+
+    def youre_oper(self, target: str) -> None:
+        """
+        ``381 <target> :You are now an IRC operator``
+        """
+
+        self.message(YoureOper(self.message_source, target=target))
+
+    def rehashing(self, target: str, file: str) -> None:
+        """
+        ``382 <target> <file> Rehashing``
+        """
+
+        self.message(Rehashing(self.message_source, target=target, file=file))
+
+    def youre_service(self, target: str, message: str) -> None:
+        """
+        ``383 <target> <message>``
+        """
+
+        self.message(YoureService(self.message_source, target=target, message=message))
+
+    def time_reply(self, target: str, server: str, time: str) -> None:
+        """
+        ``391 <target> <server> <time>``
+        """
+
+        self.message(TimeReply(self.message_source, target=target, server=server, time=time))
+
+    def users_start(self, target: str) -> None:
+        """
+        ``392 <target> :UserID   Terminal  Host``
+        """
+
+        self.message(UsersStart(self.message_source, target=target))
+
+    def users_reply(self, target: str, message: str) -> None:
+        """
+        ``393 <target> <message>``
+        """
+
+        self.message(UsersReply(self.message_source, target=target, message=message))
+
+    def users_end(self, target: str) -> None:
+        """
+        ``394 <target> :End of users``
+        """
+
+        self.message(UsersEnd(self.message_source, target=target))
+
+    def no_users(self, target: str) -> None:
+        """
+        ``395 <target> :Nobody logged in``
+        """
+
+        self.message(NoUsers(self.message_source, target=target))
+
+    def no_such_nick(self, target: str, nickname: str) -> None:
+        """
+        ``401 <target> <nickname> :No such nick/channel``
+        """
+
+        self.message(NoSuchNick(self.message_source, target=target, nickname=nickname))
+
+    def no_such_server(self, target: str, server: str) -> None:
+        """
+        ``402 <target> <server> :No such server``
+        """
+
+        self.message(NoSuchServer(self.message_source, target=target, server=server))
+
+    def no_such_channel(self, target: str, channel: str) -> None:
+        """
+        ``403 <target> <channel> :No such channel``
+        """
+
+        self.message(NoSuchChannel(self.message_source, target=target, channel=channel))
+
+    def cant_send_to_chan(self, target: str, channel: str) -> None:
+        """
+        ``404 <target> <channel> :Cannot send to channel``
+        """
+
+        self.message(CantSendToChan(self.message_source, target=target, channel=channel))
+
+    def too_many_channels(self, target: str, channel: str) -> None:
+        """
+        ``405 <target> <channel> :You have joined too many channels``
+        """
+
+        self.message(TooManyChannels(self.message_source, target=target, channel=channel))
+
+    def was_no_such_nick(self, target: str, nickname: str) -> None:
+        """
+        ``406 <target> <nickname> :There was no such nickname``
+        """
+
+        self.message(WasNoSuchNick(self.message_source, target=target, nickname=nickname))
+
+    def too_many_targets(self, target: str, orig_target: str, message: str) -> None:
+        """
+        ``407 <target> <orig-target> <message>``
+        """
+
+        self.message(TooManyTargets(self.message_source, target=target, orig_target=orig_target, message=message))
+
+    def no_such_service(self, target: str, name: str) -> None:
+        """
+        ``408 <target> <name> :No such service``
+        """
+
+        self.message(NoSuchService(self.message_source, target=target, name=name))
+
+    def no_origin(self, target: str) -> None:
+        """
+        ``409 <target> :No origin specified``
+        """
+
+        self.message(NoOrigin(self.message_source, target=target))
+
+    def no_recipient(self, target: str) -> None:
+        """
+        ``411 <target> :No recipient given``
+        """
+
+        self.message(NoRecipient(self.message_source, target=target))
+
+    def no_text_to_send(self, target: str) -> None:
+        """
+        ``412 <target> :No text to send``
+        """
+
+        self.message(NoTextToSend(self.message_source, target=target))
+
+    def no_top_level(self, target: str, mask: str) -> None:
+        """
+        ``413 <target> <mask> :No toplevel domain specified``
+        """
+
+        self.message(NoTopLevel(self.message_source, target=target, mask=mask))
+
+    def wild_top_level(self, target: str, mask: str) -> None:
+        """
+        ``414 <target> <mask> :Wildcard in toplevel domain``
+        """
+
+        self.message(WildTopLevel(self.message_source, target=target, mask=mask))
+
+    def bad_mask(self, target: str, mask: str) -> None:
+        """
+        ``415 <target> <mask> :Bad Server/host mask``
+        """
+
+        self.message(BadMask(self.message_source, target=target, mask=mask))
+
+    def unknown_command(self, target: str, command: str) -> None:
+        """
+        ``421 <target> <command> :Unknown command``
+        """
+
+        self.message(UnknownCommand(self.message_source, target=target, command=command))
+
+    def no_motd(self, target: str) -> None:
+        """
+        ``422 <target> :MOTD File is missing``
+        """
+
+        self.message(NoMotd(self.message_source, target=target))
+
+    def no_admin_info(self, target: str, server: str) -> None:
+        """
+        ``423 <target> <server> :No administrative info available``
+        """
+
+        self.message(NoAdminInfo(self.message_source, target=target, server=server))
+
+    def file_error(self, target: str, message: str) -> None:
+        """
+        ``424 <target> <message>``
+        """
+
+        self.message(FileError(self.message_source, target=target, message=message))
+
+    def no_nickname_given(self, target: str) -> None:
+        """
+        ``431 <target> :No nickname given``
+        """
+
+        self.message(NoNicknameGiven(self.message_source, target=target))
+
+    def erroneus_nickname(self, target: str, nickname: str) -> None:
+        """
+        ``432 <target> <nickname> :Erroneous nickname``
+        """
+
+        self.message(ErroneusNickname(self.message_source, target=target, nickname=nickname))
+
+    def nickname_in_use(self, target: str, nickname: str) -> None:
+        """
+        ``433 <target> <nickname> :Nickname is already in use``
+        """
+
+        self.message(NicknameInUse(self.message_source, target=target, nickname=nickname))
+
+    def nick_collision(self, target: str, nickname: str, message: str) -> None:
+        """
+        ``436 <target> <nickname> <message>``
+        """
+
+        self.message(NickCollision(self.message_source, target=target, nickname=nickname, message=message))
+
+    def unavail_resource(self, target: str, name: str) -> None:
+        """
+        ``437 <target> <name> :Nick/channel is temporarily unavailable``
+        """
+
+        self.message(UnavailResource(self.message_source, target=target, name=name))
+
+    def user_not_in_channel(self, target: str, nickname: str, channel: str) -> None:
+        """
+        ``441 <target> <nickname> <channel> :They aren't on that channel``
+        """
+
+        self.message(UserNotInChannel(self.message_source, target=target, nickname=nickname, channel=channel))
+
+    def not_on_channel(self, target: str, channel: str) -> None:
+        """
+        ``442 <target> <channel> :You're not on that channel``
+        """
+
+        self.message(NotOnChannel(self.message_source, target=target, channel=channel))
+
+    def user_on_channel(self, target: str, user: str, channel: str) -> None:
+        """
+        ``443 <target> <user> <channel> :is already on channel``
+        """
+
+        self.message(UserOnChannel(self.message_source, target=target, user=user, channel=channel))
+
+    def no_login(self, target: str, user: str) -> None:
+        """
+        ``444 <target> <user> :User not logged in``
+        """
+
+        self.message(NoLogin(self.message_source, target=target, user=user))
+
+    def summon_disabled(self, target: str) -> None:
+        """
+        ``445 <target> :SUMMON has been disabled``
+        """
+
+        self.message(SummonDisabled(self.message_source, target=target))
+
+    def users_disabled(self, target: str) -> None:
+        """
+        ``446 <target> :USERS has been disabled``
+        """
+
+        self.message(UsersDisabled(self.message_source, target=target))
+
+    def not_registered(self, target: str) -> None:
+        """
+        ``451 <target> :You have not registered``
+        """
+
+        self.message(NotRegistered(self.message_source, target=target))
+
+    def need_more_params(self, target: str, command: str) -> None:
+        """
+        ``461 <target> <command> :Not enough parameters``
+        """
+
+        self.message(NeedMoreParams(self.message_source, target=target, command=command))
+
+    def already_registered(self, target: str) -> None:
+        """
+        ``462 <target> :Unauthorized command (already registered)``
+        """
+
+        self.message(AlreadyRegistered(self.message_source, target=target))
+
+    def no_perm_for_host(self, target: str) -> None:
+        """
+        ``463 <target> :Your host isn't among the privileged``
+        """
+
+        self.message(NoPermForHost(self.message_source, target=target))
+
+    def password_mismatch(self, target: str) -> None:
+        """
+        ``464 <target> :Password incorrect``
+        """
+
+        self.message(PasswordMismatch(self.message_source, target=target))
+
+    def youre_banned_creep(self, target: str) -> None:
+        """
+        ``465 <target> :You are banned from this server``
+        """
+
+        self.message(YoureBannedCreep(self.message_source, target=target))
+
+    def you_will_be_banned(self, target: str) -> None:
+        """
+        ``466 <target>``
+        """
+
+        self.message(YouWillBeBanned(self.message_source, target=target))
+
+    def key_set(self, target: str, channel: str) -> None:
+        """
+        ``467 <target> <channel> :Channel key already set``
+        """
+
+        self.message(KeySet(self.message_source, target=target, channel=channel))
+
+    def channel_is_full(self, target: str, channel: str) -> None:
+        """
+        ``471 <target> <channel> :Cannot join channel (+l)``
+        """
+
+        self.message(ChannelIsFull(self.message_source, target=target, channel=channel))
+
+    def unknown_mode(self, target: str, char: str) -> None:
+        """
+        ``472 <target> <char> :is unknown mode char to me``
+        """
+
+        self.message(UnknownMode(self.message_source, target=target, char=char))
+
+    def invite_only_chan(self, target: str, channel: str) -> None:
+        """
+        ``473 <target> <channel> :Cannot join channel (+i)``
+        """
+
+        self.message(InviteOnlyChan(self.message_source, target=target, channel=channel))
+
+    def banned_from_chan(self, target: str, channel: str) -> None:
+        """
+        ``474 <target> <channel> :Cannot join channel (+b)``
+        """
+
+        self.message(BannedFromChan(self.message_source, target=target, channel=channel))
+
+    def bad_channel_key(self, target: str, channel: str) -> None:
+        """
+        ``475 <target> <channel> :Cannot join channel (+k)``
+        """
+
+        self.message(BadChannelKey(self.message_source, target=target, channel=channel))
+
+    def bad_chan_mask(self, target: str, channel: str) -> None:
+        """
+        ``476 <target> <channel> :Bad Channel Mask``
+        """
+
+        self.message(BadChanMask(self.message_source, target=target, channel=channel))
+
+    def no_chan_modes(self, target: str, channel: str) -> None:
+        """
+        ``477 <target> <channel> :Channel doesn't support modes``
+        """
+
+        self.message(NoChanModes(self.message_source, target=target, channel=channel))
+
+    def ban_list_full(self, target: str, channel: str, char: str) -> None:
+        """
+        ``478 <target> <channel> <char> :Channel list is full``
+        """
+
+        self.message(BanListFull(self.message_source, target=target, channel=channel, char=char))
+
+    def no_privileges(self, target: str) -> None:
+        """
+        ``481 <target> :Permission Denied- You're not an IRC operator``
+        """
+
+        self.message(NoPrivileges(self.message_source, target=target))
+
+    def chan_op_privs_needed(self, target: str, channel: str) -> None:
+        """
+        ``482 <target> <channel> :You're not channel operator``
+        """
+
+        self.message(ChanOpPrivsNeeded(self.message_source, target=target, channel=channel))
+
+    def cant_kill_server(self, target: str) -> None:
+        """
+        ``483 <target> :You can't kill a server!``
+        """
+
+        self.message(CantKillServer(self.message_source, target=target))
+
+    def restricted(self, target: str) -> None:
+        """
+        ``484 <target> :Your connection is restricted!``
+        """
+
+        self.message(Restricted(self.message_source, target=target))
+
+    def uniq_op_privs_needed(self, target: str) -> None:
+        """
+        ``485 <target> :You're not the original channel operator``
+        """
+
+        self.message(UniqOpPrivsNeeded(self.message_source, target=target))
+
+    def no_oper_host(self, target: str) -> None:
+        """
+        ``491 <target> :No O-lines for your host``
+        """
+
+        self.message(NoOperHost(self.message_source, target=target))
+
+    def user_mode_unknown_flag(self, target: str) -> None:
+        """
+        ``501 <target> :Unknown MODE flag``
+        """
+
+        self.message(UserModeUnknownFlag(self.message_source, target=target))
+
+    def users_dont_match(self, target: str) -> None:
+        """
+        ``502 <target> :Cannot change mode for other users``
+        """
+
+        self.message(UsersDontMatch(self.message_source, target=target))
+
+
+class Passwd(Message):
     """
     ``PASS <password>``
     """
@@ -80,7 +1356,7 @@ class Pass(Message):
         self.password = password
 
     def __repr__(self) -> str:
-        return 'Pass(source={}, password={})'.format(repr(self.source), repr(self.password))
+        return 'Passwd(source={}, password={})'.format(repr(self.source), repr(self.password))
 
     @classmethod
     def from_line(cls, line: Line, decode: typing.Callable[[bytes], str] = lambda b: b.decode("utf-8")) -> Message:
@@ -8199,7 +9475,7 @@ class UsersDontMatch(Message):
 
 
 from_lines_by_verb = {
-    b'PASS': Pass.from_line,
+    b'PASS': Passwd.from_line,
     b'NICK': Nick.from_line,
     b'USER': User.from_line,
     b'OPER': Oper.from_line,
