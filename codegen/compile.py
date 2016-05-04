@@ -134,7 +134,7 @@ def parse_format(fmt, data):
     argnames = []
     for a in args:
         assoc, arg = parse_arg(a)
-        associativity.intersection(assoc)
+        associativity = associativity.intersection(assoc)
         if 'name' in arg:
             # arguments must be unique
             if arg['name'] in argnames:

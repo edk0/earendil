@@ -1,10 +1,24 @@
 import collections
 import re
-from typing import TypeVar, Generic, Callable, Dict, List, Union
+from typing import TypeVar, Generic, Callable, Dict, List, Union, Any
 
-__all__ = ['Line', 'parse_line', 'unparse_line']
+class Line:
+    __slots__ = ['source', 'command', 'arguments', 'ctcp']
 
-Line = collections.namedtuple('Line', ['source', 'command', 'arguments', 'ctcp'])
+    def __init__(self, source: bytes, command: Union[bytes, int], arguments: List[bytes] = [], ctcp: List[bytes] = []) -> None:
+        self.source = source
+        self.command = command
+        self.arguments = arguments
+        self.ctcp = ctcp
+
+    def __repr__(self) -> str:
+        return "Line(source={}, command={}, arguments={}, ctcp={})".format(repr(self.source), repr(self.command), repr(self.arguments), repr(self.ctcp))
+
+    def __eq__(self, other: Any) -> bool:
+        return self.source == other.source and self.command == other.command and self.arguments == other.arguments and self.ctcp == other.ctcp
+
+    def to_raw(self) -> bytes:
+        return full_stack.forward(self)
 
 A = TypeVar('A')
 B = TypeVar('B')
@@ -113,9 +127,11 @@ class Protocol(Isomorphism[Line, List[bytes]]):
         if line.source:
             s = b':' + line.source + b' '
         cmd = line.command
-        if type(cmd) == int:
+        if isinstance(cmd, int):
             cmd = '{:03d}'.format(cmd).encode('ascii')
-        s += cmd.upper()
+        elif isinstance(cmd, bytes):
+            cmd = cmd.upper()
+        s += cmd
         if line.arguments:
             for arg in line.arguments[:-1]:
                 if any(c in arg for c in b' \t'):
@@ -173,6 +189,3 @@ full_stack = Protocol().compose(Lift(ctcp_level, lambda f, l: list(map(f, l)), l
 
 def parse_line(line: bytes) -> Line:
     return full_stack.backward(line)
-
-def unparse_line(line: Line) -> bytes:
-    return full_stack.forward(line)
