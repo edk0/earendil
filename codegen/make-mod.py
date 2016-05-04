@@ -137,25 +137,6 @@ def data_to_module(data, f):
             if 'name' in arg:
                 arg['name'] = name_snake(arg['name'])
 
-    # factory mixin
-    ind.writeln('class MessageFactory:')
-    with ind.indent():
-        ind.writeln('message_source = None # type: str')
-        ind.writeln('def message(self, msg: Message) -> None:')
-        with ind.indent():
-            ind.writeln('raise NotImplementedError("MessageFactory.message")')
-        for msg in data['messages']:
-            initargs = 'self' + make_arglist(msg)
-            ind.writeln('def {}({}) -> None:', msg['name'], initargs)
-            with ind.indent():
-                write_docstring(ind, msg)
-                constrargs = 'self.message_source'
-                for arg in msg['arguments']:
-                    if not 'name' in arg:
-                        continue
-                    constrargs += ', {0}={0}'.format(arg['name'])
-                ind.writeln('self.message({}({}))', msg['clsname'], constrargs)
-
     # classes
     for msg in data['messages']:
         ind.writeln('class {}(Message):', msg['clsname'])
@@ -285,7 +266,40 @@ def data_to_module(data, f):
             if isinstance(msg['verb'], int):
                 verb = '{}'.format(msg['verb'])
             ind.writeln('{}: {}.from_line,', verb, msg['clsname'])
-    ind.writeln('}}')    
+    ind.writeln('}}')
+
+    # factory mixin
+    ind.writeln('class MessageFactory:')
+    with ind.indent():
+        ind.writeln('message_source = None # type: str')
+        ind.writeln('def message(self, msg: Message) -> None:')
+        with ind.indent():
+            ind.writeln('raise NotImplementedError("MessageFactory.message")')
+        for msg in data['messages']:
+            initargs = 'self' + make_arglist(msg)
+            ind.writeln('def {}({}) -> None:', msg['name'], initargs)
+            with ind.indent():
+                write_docstring(ind, msg)
+                constrargs = 'self.message_source'
+                for arg in msg['arguments']:
+                    if not 'name' in arg:
+                        continue
+                    constrargs += ', {0}={0}'.format(arg['name'])
+                ind.writeln('self.message({}({}))', msg['clsname'], constrargs)
+
+    # handler mixin
+    ind.writeln('class MessageHandler:')
+    with ind.indent():
+        for msg in data['messages']:
+            ind.writeln('def on_{0}(self, {0}: {1}) -> None: pass', msg['name'], msg['clsname'])
+        ind.writeln('def on_message(self, msg: Message) -> None:')
+        with ind.indent():
+            cond = 'if'
+            for msg in data['messages']:
+                ind.writeln('{} isinstance(msg, {}):', cond, msg['clsname'])
+                cond = 'elif'
+                with ind.indent():
+                    ind.writeln('self.on_{}(msg)', msg['name'])
 
 p = argparse.ArgumentParser()
 p.add_argument('input', type=argparse.FileType('r'))
