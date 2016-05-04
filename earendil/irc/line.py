@@ -20,6 +20,10 @@ class Line:
     def to_raw(self) -> bytes:
         return full_stack.forward(self)
 
+    @classmethod
+    def from_raw(cls, line: bytes) -> 'Line':
+        return full_stack.backward(line)
+
 A = TypeVar('A')
 B = TypeVar('B')
 C = TypeVar('C')
@@ -186,6 +190,3 @@ class Protocol(Isomorphism[Line, List[bytes]]):
         return Line(source, command, lineparts, tags[1:])
 
 full_stack = Protocol().compose(Lift(ctcp_level, lambda f, l: list(map(f, l)), lambda f, l: list(map(f, l)))).compose(Tagger()).compose(low_level).compose(Liner())
-
-def parse_line(line: bytes) -> Line:
-    return full_stack.backward(line)

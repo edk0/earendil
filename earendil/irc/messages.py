@@ -6,7 +6,7 @@
 #########################################
 
 import typing
-from .line import Line, parse_line
+from .line import Line
 
 #
 # This file has been generated from the Earendil IRC Protocol Specification,
@@ -22,6 +22,18 @@ class Message:
     def to_raw(self, encode: typing.Callable[[str], bytes] = lambda s: s.encode('utf-8')) -> bytes:
         return self.to_line().to_raw()
 
+    @classmethod
+    def from_line(cls, line: Line, decode: typing.Callable[[bytes], str] = lambda b: b.decode('utf-8')) -> 'Message':
+        global from_lines_by_verb
+        try:
+            return from_lines_by_verb[line.command](line, decode)
+        except Exception:
+            return Unknown.from_line(line, decode)
+
+    @classmethod
+    def from_raw(cls, line: bytes, decode: typing.Callable[[bytes], str] = lambda b: b.decode('utf-8')) -> 'Message':
+        return cls.from_line(Line.from_raw(line), decode)
+
 class Unknown(Message):
     __slots__ = ['command', 'arguments']
 
@@ -36,11 +48,18 @@ class Unknown(Message):
             source = encode(self.source)
         return Line(source, self.command, self.arguments)
 
+    @classmethod
+    def from_line(cls, line: Line, decode: typing.Callable[[bytes], str] = lambda b: b.decode('utf-8')) -> Message:
+        source = None
+        if line.source is not None:
+            try:
+                source = decode(line.source)
+            except Exception:
+                pass
+        return cls(source, line.command, line.arguments)
+
     def __repr__(self) -> str:
         return "Unknown(source={}, command={}, arguments={})".format(repr(self.source), repr(self.command), repr(self.arguments))
-
-def parse_line_message(line: bytes, decode: typing.Callable[[bytes], str] = lambda b: b.decode('utf-8')) -> Message:
-    return parse_message(parse_line(line), decode)
 
 #
 # make-mod.header.py above ^
@@ -48,2543 +67,6 @@ def parse_line_message(line: bytes, decode: typing.Callable[[bytes], str] = lamb
 #
 
 
-
-def parse_message(line: Line, decode: typing.Callable[[bytes], str] = lambda b: b.decode("utf-8")) -> Message:
-    try:
-        source = None
-        if line.source is not None:
-            source = decode(line.source)
-
-    except Exception:
-        source = None
-
-    if line.command == b'PASS' and len(line.arguments) == 1: # Pass
-        try:
-            i = 0
-            pass_password = decode(line.arguments[i])
-            i += 1
-            assert i == len(line.arguments)
-            return Pass(source=source, password=pass_password)
-        except Exception:
-            pass
-
-    if line.command == b'NICK' and len(line.arguments) == 1: # Nick
-        try:
-            i = 0
-            nick_nickname = decode(line.arguments[i])
-            i += 1
-            assert i == len(line.arguments)
-            return Nick(source=source, nickname=nick_nickname)
-        except Exception:
-            pass
-
-    if line.command == b'USER' and len(line.arguments) == 4: # User
-        try:
-            i = 0
-            user_user = decode(line.arguments[i])
-            i += 1
-            user_mode = int(line.arguments[i])
-            i += 1
-            # user_line.arguments[i]: '*'
-            i += 1
-            user_realname = decode(line.arguments[i])
-            i += 1
-            assert i == len(line.arguments)
-            return User(source=source, user=user_user, mode=user_mode, realname=user_realname)
-        except Exception:
-            pass
-
-    if line.command == b'OPER' and len(line.arguments) == 2: # Oper
-        try:
-            i = 0
-            oper_name = decode(line.arguments[i])
-            i += 1
-            oper_password = decode(line.arguments[i])
-            i += 1
-            assert i == len(line.arguments)
-            return Oper(source=source, name=oper_name, password=oper_password)
-        except Exception:
-            pass
-
-    if line.command == b'MODE' and len(line.arguments) == 2: # Mode
-        try:
-            i = 0
-            mode_name = decode(line.arguments[i])
-            i += 1
-            mode_mode = decode(line.arguments[i])
-            i += 1
-            assert i == len(line.arguments)
-            return Mode(source=source, name=mode_name, mode=mode_mode)
-        except Exception:
-            pass
-
-    if line.command == b'SERVICE' and len(line.arguments) == 6: # Service
-        try:
-            i = 0
-            service_nickname = decode(line.arguments[i])
-            i += 1
-            # service_line.arguments[i]: '*'
-            i += 1
-            service_distribution = decode(line.arguments[i])
-            i += 1
-            service_type = int(line.arguments[i])
-            i += 1
-            # service_line.arguments[i]: '0'
-            i += 1
-            service_info = decode(line.arguments[i])
-            i += 1
-            assert i == len(line.arguments)
-            return Service(source=source, nickname=service_nickname, distribution=service_distribution, type=service_type, info=service_info)
-        except Exception:
-            pass
-
-    if line.command == b'QUIT' and len(line.arguments) <= 1: # Quit
-        try:
-            i = 0
-            if len(line.arguments) > 0:
-                quit_message = decode(line.arguments[i])
-                i += 1
-            else:
-                quit_message = None
-            assert i == len(line.arguments)
-            return Quit(source=source, message=quit_message)
-        except Exception:
-            pass
-
-    if line.command == b'SQUIT' and len(line.arguments) == 2: # SQuit
-        try:
-            i = 0
-            s_quit_server = decode(line.arguments[i])
-            i += 1
-            s_quit_comment = decode(line.arguments[i])
-            i += 1
-            assert i == len(line.arguments)
-            return SQuit(source=source, server=s_quit_server, comment=s_quit_comment)
-        except Exception:
-            pass
-
-    if line.command == b'JOIN' and 1 <= len(line.arguments) <= 2: # ChannelJoin
-        try:
-            i = 0
-            channel_join_channels = [decode(x) for x in line.arguments[i].split(b",")]
-            i += 1
-            if len(line.arguments) > 1:
-                channel_join_keys = [decode(x) for x in line.arguments[i].split(b",")]
-                i += 1
-            else:
-                channel_join_keys = None
-            assert i == len(line.arguments)
-            return ChannelJoin(source=source, channels=channel_join_channels, keys=channel_join_keys)
-        except Exception:
-            pass
-
-    if line.command == b'PART' and 1 <= len(line.arguments) <= 2: # ChannelPart
-        try:
-            i = 0
-            channel_part_channels = [decode(x) for x in line.arguments[i].split(b",")]
-            i += 1
-            if len(line.arguments) > 1:
-                channel_part_message = decode(line.arguments[i])
-                i += 1
-            else:
-                channel_part_message = None
-            assert i == len(line.arguments)
-            return ChannelPart(source=source, channels=channel_part_channels, message=channel_part_message)
-        except Exception:
-            pass
-
-    if line.command == b'TOPIC' and 1 <= len(line.arguments) <= 2: # Topic
-        try:
-            i = 0
-            topic_channel = decode(line.arguments[i])
-            i += 1
-            if len(line.arguments) > 1:
-                topic_topic = decode(line.arguments[i])
-                i += 1
-            else:
-                topic_topic = None
-            assert i == len(line.arguments)
-            return Topic(source=source, channel=topic_channel, topic=topic_topic)
-        except Exception:
-            pass
-
-    if line.command == b'NAMES' and len(line.arguments) <= 2: # Names
-        try:
-            i = 0
-            if len(line.arguments) > 0:
-                names_channels = [decode(x) for x in line.arguments[i].split(b",")]
-                i += 1
-            else:
-                names_channels = None
-            if len(line.arguments) > 1:
-                names_target = decode(line.arguments[i])
-                i += 1
-            else:
-                names_target = None
-            assert i == len(line.arguments)
-            return Names(source=source, channels=names_channels, target=names_target)
-        except Exception:
-            pass
-
-    if line.command == b'LIST' and len(line.arguments) <= 2: # List
-        try:
-            i = 0
-            if len(line.arguments) > 0:
-                list_channels = [decode(x) for x in line.arguments[i].split(b",")]
-                i += 1
-            else:
-                list_channels = None
-            if len(line.arguments) > 1:
-                list_target = decode(line.arguments[i])
-                i += 1
-            else:
-                list_target = None
-            assert i == len(line.arguments)
-            return List(source=source, channels=list_channels, target=list_target)
-        except Exception:
-            pass
-
-    if line.command == b'INVITE' and len(line.arguments) == 2: # Invite
-        try:
-            i = 0
-            invite_nickname = decode(line.arguments[i])
-            i += 1
-            invite_channel = decode(line.arguments[i])
-            i += 1
-            assert i == len(line.arguments)
-            return Invite(source=source, nickname=invite_nickname, channel=invite_channel)
-        except Exception:
-            pass
-
-    if line.command == b'KICK' and 2 <= len(line.arguments) <= 3: # Kick
-        try:
-            i = 0
-            kick_channels = [decode(x) for x in line.arguments[i].split(b",")]
-            i += 1
-            kick_users = [decode(x) for x in line.arguments[i].split(b",")]
-            i += 1
-            if len(line.arguments) > 2:
-                kick_comment = decode(line.arguments[i])
-                i += 1
-            else:
-                kick_comment = None
-            assert i == len(line.arguments)
-            return Kick(source=source, channels=kick_channels, users=kick_users, comment=kick_comment)
-        except Exception:
-            pass
-
-    if line.command == b'PRIVMSG' and len(line.arguments) == 2: # Privmsg
-        try:
-            i = 0
-            privmsg_target = decode(line.arguments[i])
-            i += 1
-            privmsg_message = decode(line.arguments[i])
-            i += 1
-            assert i == len(line.arguments)
-            return Privmsg(source=source, target=privmsg_target, message=privmsg_message)
-        except Exception:
-            pass
-
-    if line.command == b'NOTICE' and len(line.arguments) == 2: # Notice
-        try:
-            i = 0
-            notice_target = decode(line.arguments[i])
-            i += 1
-            notice_message = decode(line.arguments[i])
-            i += 1
-            assert i == len(line.arguments)
-            return Notice(source=source, target=notice_target, message=notice_message)
-        except Exception:
-            pass
-
-    if line.command == b'MOTD' and len(line.arguments) <= 1: # Motd
-        try:
-            i = 0
-            if len(line.arguments) > 0:
-                motd_target = decode(line.arguments[i])
-                i += 1
-            else:
-                motd_target = None
-            assert i == len(line.arguments)
-            return Motd(source=source, target=motd_target)
-        except Exception:
-            pass
-
-    if line.command == b'LUSERS' and len(line.arguments) <= 2: # Lusers
-        try:
-            i = 0
-            if len(line.arguments) > 0:
-                lusers_mask = decode(line.arguments[i])
-                i += 1
-            else:
-                lusers_mask = None
-            if len(line.arguments) > 1:
-                lusers_target = decode(line.arguments[i])
-                i += 1
-            else:
-                lusers_target = None
-            assert i == len(line.arguments)
-            return Lusers(source=source, mask=lusers_mask, target=lusers_target)
-        except Exception:
-            pass
-
-    if line.command == b'VERSION' and len(line.arguments) <= 1: # Version
-        try:
-            i = 0
-            if len(line.arguments) > 0:
-                version_target = decode(line.arguments[i])
-                i += 1
-            else:
-                version_target = None
-            assert i == len(line.arguments)
-            return Version(source=source, target=version_target)
-        except Exception:
-            pass
-
-    if line.command == b'STATS' and len(line.arguments) <= 2: # Stats
-        try:
-            i = 0
-            if len(line.arguments) > 0:
-                stats_query = decode(line.arguments[i])
-                i += 1
-            else:
-                stats_query = None
-            if len(line.arguments) > 1:
-                stats_target = decode(line.arguments[i])
-                i += 1
-            else:
-                stats_target = None
-            assert i == len(line.arguments)
-            return Stats(source=source, query=stats_query, target=stats_target)
-        except Exception:
-            pass
-
-    if line.command == b'LINKS' and len(line.arguments) <= 2: # Links
-        try:
-            i = len(line.arguments) - 1
-            if len(line.arguments) > 0:
-                links_server = decode(line.arguments[i])
-                i -= 1
-            else:
-                links_server = None
-            if len(line.arguments) > 1:
-                links_mask = decode(line.arguments[i])
-                i -= 1
-            else:
-                links_mask = None
-            assert i == -1
-            return Links(source=source, server=links_server, mask=links_mask)
-        except Exception:
-            pass
-
-    if line.command == b'TIME' and len(line.arguments) <= 1: # Time
-        try:
-            i = 0
-            if len(line.arguments) > 0:
-                time_target = decode(line.arguments[i])
-                i += 1
-            else:
-                time_target = None
-            assert i == len(line.arguments)
-            return Time(source=source, target=time_target)
-        except Exception:
-            pass
-
-    if line.command == b'CONNECT' and 2 <= len(line.arguments) <= 3: # ServerConnect
-        try:
-            i = 0
-            server_connect_target = decode(line.arguments[i])
-            i += 1
-            server_connect_port = int(line.arguments[i])
-            i += 1
-            if len(line.arguments) > 2:
-                server_connect_remote = decode(line.arguments[i])
-                i += 1
-            else:
-                server_connect_remote = None
-            assert i == len(line.arguments)
-            return ServerConnect(source=source, target=server_connect_target, port=server_connect_port, remote=server_connect_remote)
-        except Exception:
-            pass
-
-    if line.command == b'TRACE' and len(line.arguments) <= 1: # Trace
-        try:
-            i = 0
-            if len(line.arguments) > 0:
-                trace_target = decode(line.arguments[i])
-                i += 1
-            else:
-                trace_target = None
-            assert i == len(line.arguments)
-            return Trace(source=source, target=trace_target)
-        except Exception:
-            pass
-
-    if line.command == b'ADMIN' and len(line.arguments) <= 1: # Admin
-        try:
-            i = 0
-            if len(line.arguments) > 0:
-                admin_target = decode(line.arguments[i])
-                i += 1
-            else:
-                admin_target = None
-            assert i == len(line.arguments)
-            return Admin(source=source, target=admin_target)
-        except Exception:
-            pass
-
-    if line.command == b'INFO' and len(line.arguments) <= 1: # Info
-        try:
-            i = 0
-            if len(line.arguments) > 0:
-                info_target = decode(line.arguments[i])
-                i += 1
-            else:
-                info_target = None
-            assert i == len(line.arguments)
-            return Info(source=source, target=info_target)
-        except Exception:
-            pass
-
-    if line.command == b'SERVLIST' and len(line.arguments) <= 2: # ServList
-        try:
-            i = 0
-            if len(line.arguments) > 0:
-                serv_list_mask = decode(line.arguments[i])
-                i += 1
-            else:
-                serv_list_mask = None
-            if len(line.arguments) > 1:
-                serv_list_type = decode(line.arguments[i])
-                i += 1
-            else:
-                serv_list_type = None
-            assert i == len(line.arguments)
-            return ServList(source=source, mask=serv_list_mask, type=serv_list_type)
-        except Exception:
-            pass
-
-    if line.command == b'SQUERY' and len(line.arguments) == 2: # SQuery
-        try:
-            i = 0
-            s_query_servicename = decode(line.arguments[i])
-            i += 1
-            s_query_text = decode(line.arguments[i])
-            i += 1
-            assert i == len(line.arguments)
-            return SQuery(source=source, servicename=s_query_servicename, text=s_query_text)
-        except Exception:
-            pass
-
-    if line.command == b'WHO' and len(line.arguments) <= 2: # Who
-        try:
-            i = 0
-            if len(line.arguments) > 0:
-                who_mask = decode(line.arguments[i])
-                i += 1
-            else:
-                who_mask = None
-            if len(line.arguments) > 1:
-                who_operators = True
-                i += 1
-            else:
-                who_operators = False
-            assert i == len(line.arguments)
-            return Who(source=source, mask=who_mask, operators=who_operators)
-        except Exception:
-            pass
-
-    if line.command == b'WHOIS' and 1 <= len(line.arguments) <= 2: # WhoIs
-        try:
-            i = 0
-            if len(line.arguments) > 1:
-                who_is_target = decode(line.arguments[i])
-                i += 1
-            else:
-                who_is_target = None
-            who_is_masks = [decode(x) for x in line.arguments[i].split(b",")]
-            i += 1
-            assert i == len(line.arguments)
-            return WhoIs(source=source, target=who_is_target, masks=who_is_masks)
-        except Exception:
-            pass
-
-    if line.command == b'WHOWAS' and 1 <= len(line.arguments) <= 3: # WhoWas
-        try:
-            i = 0
-            who_was_nicknames = [decode(x) for x in line.arguments[i].split(b",")]
-            i += 1
-            if len(line.arguments) > 1:
-                who_was_count = int(line.arguments[i])
-                i += 1
-            else:
-                who_was_count = None
-            if len(line.arguments) > 2:
-                who_was_target = decode(line.arguments[i])
-                i += 1
-            else:
-                who_was_target = None
-            assert i == len(line.arguments)
-            return WhoWas(source=source, nicknames=who_was_nicknames, count=who_was_count, target=who_was_target)
-        except Exception:
-            pass
-
-    if line.command == b'KILL' and len(line.arguments) == 2: # Kill
-        try:
-            i = 0
-            kill_nickname = decode(line.arguments[i])
-            i += 1
-            kill_comment = decode(line.arguments[i])
-            i += 1
-            assert i == len(line.arguments)
-            return Kill(source=source, nickname=kill_nickname, comment=kill_comment)
-        except Exception:
-            pass
-
-    if line.command == b'PING' and 1 <= len(line.arguments) <= 2: # Ping
-        try:
-            i = 0
-            ping_server1 = decode(line.arguments[i])
-            i += 1
-            if len(line.arguments) > 1:
-                ping_server2 = decode(line.arguments[i])
-                i += 1
-            else:
-                ping_server2 = None
-            assert i == len(line.arguments)
-            return Ping(source=source, server1=ping_server1, server2=ping_server2)
-        except Exception:
-            pass
-
-    if line.command == b'PONG' and 1 <= len(line.arguments) <= 2: # Pong
-        try:
-            i = 0
-            pong_server = decode(line.arguments[i])
-            i += 1
-            if len(line.arguments) > 1:
-                pong_server2 = decode(line.arguments[i])
-                i += 1
-            else:
-                pong_server2 = None
-            assert i == len(line.arguments)
-            return Pong(source=source, server=pong_server, server2=pong_server2)
-        except Exception:
-            pass
-
-    if line.command == b'ERROR' and len(line.arguments) == 1: # Error
-        try:
-            i = 0
-            error_message = decode(line.arguments[i])
-            i += 1
-            assert i == len(line.arguments)
-            return Error(source=source, message=error_message)
-        except Exception:
-            pass
-
-    if line.command == b'AWAY' and len(line.arguments) <= 1: # Away
-        try:
-            i = 0
-            if len(line.arguments) > 0:
-                away_text = decode(line.arguments[i])
-                i += 1
-            else:
-                away_text = None
-            assert i == len(line.arguments)
-            return Away(source=source, text=away_text)
-        except Exception:
-            pass
-
-    if line.command == b'REHASH' and len(line.arguments) == 0: # Rehash
-        try:
-            return Rehash(source=source)
-        except Exception:
-            pass
-
-    if line.command == b'DIE' and len(line.arguments) == 0: # Die
-        try:
-            return Die(source=source)
-        except Exception:
-            pass
-
-    if line.command == b'RESTART' and len(line.arguments) == 0: # Restart
-        try:
-            return Restart(source=source)
-        except Exception:
-            pass
-
-    if line.command == b'SUMMON' and 1 <= len(line.arguments) <= 3: # Summon
-        try:
-            i = 0
-            summon_user = decode(line.arguments[i])
-            i += 1
-            if len(line.arguments) > 1:
-                summon_target = decode(line.arguments[i])
-                i += 1
-            else:
-                summon_target = None
-            if len(line.arguments) > 2:
-                summon_channel = decode(line.arguments[i])
-                i += 1
-            else:
-                summon_channel = None
-            assert i == len(line.arguments)
-            return Summon(source=source, user=summon_user, target=summon_target, channel=summon_channel)
-        except Exception:
-            pass
-
-    if line.command == b'USERS' and len(line.arguments) <= 1: # Users
-        try:
-            i = 0
-            if len(line.arguments) > 0:
-                users_target = decode(line.arguments[i])
-                i += 1
-            else:
-                users_target = None
-            assert i == len(line.arguments)
-            return Users(source=source, target=users_target)
-        except Exception:
-            pass
-
-    if line.command == b'WALLOPS' and len(line.arguments) == 1: # WallOps
-        try:
-            i = 0
-            wall_ops_message = decode(line.arguments[i])
-            i += 1
-            assert i == len(line.arguments)
-            return WallOps(source=source, message=wall_ops_message)
-        except Exception:
-            pass
-
-    if line.command == b'USERHOST' and len(line.arguments) == 1: # UserHost
-        try:
-            i = 0
-            user_host_nickname = decode(line.arguments[i])
-            i += 1
-            assert i == len(line.arguments)
-            return UserHost(source=source, nickname=user_host_nickname)
-        except Exception:
-            pass
-
-    if line.command == b'ISON' and len(line.arguments) == 1: # IsOn
-        try:
-            i = 0
-            is_on_nickname = decode(line.arguments[i])
-            i += 1
-            assert i == len(line.arguments)
-            return IsOn(source=source, nickname=is_on_nickname)
-        except Exception:
-            pass
-
-    if line.command == 1 and len(line.arguments) == 2: # Welcome
-        try:
-            i = 0
-            welcome_target = decode(line.arguments[i])
-            i += 1
-            welcome_message = decode(line.arguments[i])
-            i += 1
-            assert i == len(line.arguments)
-            return Welcome(source=source, target=welcome_target, message=welcome_message)
-        except Exception:
-            pass
-
-    if line.command == 2 and len(line.arguments) == 2: # YourHost
-        try:
-            i = 0
-            your_host_target = decode(line.arguments[i])
-            i += 1
-            your_host_message = decode(line.arguments[i])
-            i += 1
-            assert i == len(line.arguments)
-            return YourHost(source=source, target=your_host_target, message=your_host_message)
-        except Exception:
-            pass
-
-    if line.command == 3 and len(line.arguments) == 2: # Created
-        try:
-            i = 0
-            created_target = decode(line.arguments[i])
-            i += 1
-            created_message = decode(line.arguments[i])
-            i += 1
-            assert i == len(line.arguments)
-            return Created(source=source, target=created_target, message=created_message)
-        except Exception:
-            pass
-
-    if line.command == 4 and len(line.arguments) == 2: # MyInfo
-        try:
-            i = 0
-            my_info_target = decode(line.arguments[i])
-            i += 1
-            my_info_message = decode(line.arguments[i])
-            i += 1
-            assert i == len(line.arguments)
-            return MyInfo(source=source, target=my_info_target, message=my_info_message)
-        except Exception:
-            pass
-
-    if line.command == 5 and len(line.arguments) == 2: # Bounce
-        try:
-            i = 0
-            bounce_target = decode(line.arguments[i])
-            i += 1
-            bounce_message = decode(line.arguments[i])
-            i += 1
-            assert i == len(line.arguments)
-            return Bounce(source=source, target=bounce_target, message=bounce_message)
-        except Exception:
-            pass
-
-    if line.command == 200 and len(line.arguments) == 9: # TraceLinkReply
-        try:
-            i = 0
-            trace_link_reply_target = decode(line.arguments[i])
-            i += 1
-            # trace_link_reply_line.arguments[i]: 'Link'
-            i += 1
-            trace_link_reply_version = decode(line.arguments[i])
-            i += 1
-            trace_link_reply_destination = decode(line.arguments[i])
-            i += 1
-            trace_link_reply_next = decode(line.arguments[i])
-            i += 1
-            trace_link_reply_protocol_version = decode(line.arguments[i])
-            i += 1
-            trace_link_reply_link_uptime = decode(line.arguments[i])
-            i += 1
-            trace_link_reply_back_send_q = decode(line.arguments[i])
-            i += 1
-            trace_link_reply_up_send_q = decode(line.arguments[i])
-            i += 1
-            assert i == len(line.arguments)
-            return TraceLinkReply(source=source, target=trace_link_reply_target, version=trace_link_reply_version, destination=trace_link_reply_destination, next=trace_link_reply_next, protocol_version=trace_link_reply_protocol_version, link_uptime=trace_link_reply_link_uptime, back_send_q=trace_link_reply_back_send_q, up_send_q=trace_link_reply_up_send_q)
-        except Exception:
-            pass
-
-    if line.command == 201 and len(line.arguments) == 4: # TraceConnecting
-        try:
-            i = 0
-            trace_connecting_target = decode(line.arguments[i])
-            i += 1
-            # trace_connecting_line.arguments[i]: 'Try.'
-            i += 1
-            trace_connecting_cls = decode(line.arguments[i])
-            i += 1
-            trace_connecting_server = decode(line.arguments[i])
-            i += 1
-            assert i == len(line.arguments)
-            return TraceConnecting(source=source, target=trace_connecting_target, cls=trace_connecting_cls, server=trace_connecting_server)
-        except Exception:
-            pass
-
-    if line.command == 202 and len(line.arguments) == 4: # TraceHandshake
-        try:
-            i = 0
-            trace_handshake_target = decode(line.arguments[i])
-            i += 1
-            # trace_handshake_line.arguments[i]: 'H.S.'
-            i += 1
-            trace_handshake_cls = decode(line.arguments[i])
-            i += 1
-            trace_handshake_server = decode(line.arguments[i])
-            i += 1
-            assert i == len(line.arguments)
-            return TraceHandshake(source=source, target=trace_handshake_target, cls=trace_handshake_cls, server=trace_handshake_server)
-        except Exception:
-            pass
-
-    if line.command == 203 and 3 <= len(line.arguments) <= 4: # TraceUnknown
-        try:
-            i = 0
-            trace_unknown_target = decode(line.arguments[i])
-            i += 1
-            # trace_unknown_line.arguments[i]: '????'
-            i += 1
-            trace_unknown_cls = decode(line.arguments[i])
-            i += 1
-            if len(line.arguments) > 3:
-                trace_unknown_ip = decode(line.arguments[i])
-                i += 1
-            else:
-                trace_unknown_ip = None
-            assert i == len(line.arguments)
-            return TraceUnknown(source=source, target=trace_unknown_target, cls=trace_unknown_cls, ip=trace_unknown_ip)
-        except Exception:
-            pass
-
-    if line.command == 204 and len(line.arguments) == 4: # TraceOperator
-        try:
-            i = 0
-            trace_operator_target = decode(line.arguments[i])
-            i += 1
-            # trace_operator_line.arguments[i]: 'Oper'
-            i += 1
-            trace_operator_cls = decode(line.arguments[i])
-            i += 1
-            trace_operator_nickname = decode(line.arguments[i])
-            i += 1
-            assert i == len(line.arguments)
-            return TraceOperator(source=source, target=trace_operator_target, cls=trace_operator_cls, nickname=trace_operator_nickname)
-        except Exception:
-            pass
-
-    if line.command == 205 and len(line.arguments) == 4: # TraceUser
-        try:
-            i = 0
-            trace_user_target = decode(line.arguments[i])
-            i += 1
-            # trace_user_line.arguments[i]: 'User'
-            i += 1
-            trace_user_cls = decode(line.arguments[i])
-            i += 1
-            trace_user_nickname = decode(line.arguments[i])
-            i += 1
-            assert i == len(line.arguments)
-            return TraceUser(source=source, target=trace_user_target, cls=trace_user_cls, nickname=trace_user_nickname)
-        except Exception:
-            pass
-
-    if line.command == 206 and len(line.arguments) == 8: # TraceServer
-        try:
-            i = 0
-            trace_server_target = decode(line.arguments[i])
-            i += 1
-            # trace_server_line.arguments[i]: 'Serv'
-            i += 1
-            trace_server_cls = decode(line.arguments[i])
-            i += 1
-            trace_server_s = decode(line.arguments[i])
-            i += 1
-            trace_server_c = decode(line.arguments[i])
-            i += 1
-            trace_server_server = decode(line.arguments[i])
-            i += 1
-            trace_server_hostmask = decode(line.arguments[i])
-            i += 1
-            trace_server_protocol_version = decode(line.arguments[i])
-            i += 1
-            assert i == len(line.arguments)
-            return TraceServer(source=source, target=trace_server_target, cls=trace_server_cls, s=trace_server_s, c=trace_server_c, server=trace_server_server, hostmask=trace_server_hostmask, protocol_version=trace_server_protocol_version)
-        except Exception:
-            pass
-
-    if line.command == 207 and len(line.arguments) == 6: # TraceService
-        try:
-            i = 0
-            trace_service_target = decode(line.arguments[i])
-            i += 1
-            # trace_service_line.arguments[i]: 'Service'
-            i += 1
-            trace_service_cls = decode(line.arguments[i])
-            i += 1
-            trace_service_name = decode(line.arguments[i])
-            i += 1
-            trace_service_type = decode(line.arguments[i])
-            i += 1
-            trace_service_active_type = decode(line.arguments[i])
-            i += 1
-            assert i == len(line.arguments)
-            return TraceService(source=source, target=trace_service_target, cls=trace_service_cls, name=trace_service_name, type=trace_service_type, active_type=trace_service_active_type)
-        except Exception:
-            pass
-
-    if line.command == 208 and len(line.arguments) == 4: # TraceNewtype
-        try:
-            i = 0
-            trace_newtype_target = decode(line.arguments[i])
-            i += 1
-            trace_newtype_newtype = decode(line.arguments[i])
-            i += 1
-            # trace_newtype_line.arguments[i]: '0'
-            i += 1
-            trace_newtype_name = decode(line.arguments[i])
-            i += 1
-            assert i == len(line.arguments)
-            return TraceNewtype(source=source, target=trace_newtype_target, newtype=trace_newtype_newtype, name=trace_newtype_name)
-        except Exception:
-            pass
-
-    if line.command == 209 and len(line.arguments) == 4: # TraceClass
-        try:
-            i = 0
-            trace_class_target = decode(line.arguments[i])
-            i += 1
-            # trace_class_line.arguments[i]: 'Class'
-            i += 1
-            trace_class_cls = decode(line.arguments[i])
-            i += 1
-            trace_class_count = int(line.arguments[i])
-            i += 1
-            assert i == len(line.arguments)
-            return TraceClass(source=source, target=trace_class_target, cls=trace_class_cls, count=trace_class_count)
-        except Exception:
-            pass
-
-    if line.command == 211 and len(line.arguments) == 8: # StatsLinkInfo
-        try:
-            i = 0
-            stats_link_info_target = decode(line.arguments[i])
-            i += 1
-            stats_link_info_name = decode(line.arguments[i])
-            i += 1
-            stats_link_info_sendq = decode(line.arguments[i])
-            i += 1
-            stats_link_info_sent_messages = int(line.arguments[i])
-            i += 1
-            stats_link_info_sent_kbytes = int(line.arguments[i])
-            i += 1
-            stats_link_info_recv_messages = int(line.arguments[i])
-            i += 1
-            stats_link_info_recv_kbytes = int(line.arguments[i])
-            i += 1
-            stats_link_info_uptime = int(line.arguments[i])
-            i += 1
-            assert i == len(line.arguments)
-            return StatsLinkInfo(source=source, target=stats_link_info_target, name=stats_link_info_name, sendq=stats_link_info_sendq, sent_messages=stats_link_info_sent_messages, sent_kbytes=stats_link_info_sent_kbytes, recv_messages=stats_link_info_recv_messages, recv_kbytes=stats_link_info_recv_kbytes, uptime=stats_link_info_uptime)
-        except Exception:
-            pass
-
-    if line.command == 212 and len(line.arguments) == 5: # StatsCommands
-        try:
-            i = 0
-            stats_commands_target = decode(line.arguments[i])
-            i += 1
-            stats_commands_command = decode(line.arguments[i])
-            i += 1
-            stats_commands_count = int(line.arguments[i])
-            i += 1
-            stats_commands_bytecount = int(line.arguments[i])
-            i += 1
-            stats_commands_remote_count = int(line.arguments[i])
-            i += 1
-            assert i == len(line.arguments)
-            return StatsCommands(source=source, target=stats_commands_target, command=stats_commands_command, count=stats_commands_count, bytecount=stats_commands_bytecount, remote_count=stats_commands_remote_count)
-        except Exception:
-            pass
-
-    if line.command == 219 and len(line.arguments) == 3: # StatsEnd
-        try:
-            i = 0
-            stats_end_target = decode(line.arguments[i])
-            i += 1
-            stats_end_letter = decode(line.arguments[i])
-            i += 1
-            # stats_end_line.arguments[i]: 'End of STATS report'
-            i += 1
-            assert i == len(line.arguments)
-            return StatsEnd(source=source, target=stats_end_target, letter=stats_end_letter)
-        except Exception:
-            pass
-
-    if line.command == 221 and len(line.arguments) == 2: # UserModeIs
-        try:
-            i = 0
-            user_mode_is_target = decode(line.arguments[i])
-            i += 1
-            user_mode_is_mode = decode(line.arguments[i])
-            i += 1
-            assert i == len(line.arguments)
-            return UserModeIs(source=source, target=user_mode_is_target, mode=user_mode_is_mode)
-        except Exception:
-            pass
-
-    if line.command == 234 and len(line.arguments) == 7: # ServListReply
-        try:
-            i = 0
-            serv_list_reply_target = decode(line.arguments[i])
-            i += 1
-            serv_list_reply_name = decode(line.arguments[i])
-            i += 1
-            serv_list_reply_server = decode(line.arguments[i])
-            i += 1
-            serv_list_reply_mask = decode(line.arguments[i])
-            i += 1
-            serv_list_reply_type = decode(line.arguments[i])
-            i += 1
-            serv_list_reply_hopcount = int(line.arguments[i])
-            i += 1
-            serv_list_reply_info = decode(line.arguments[i])
-            i += 1
-            assert i == len(line.arguments)
-            return ServListReply(source=source, target=serv_list_reply_target, name=serv_list_reply_name, server=serv_list_reply_server, mask=serv_list_reply_mask, type=serv_list_reply_type, hopcount=serv_list_reply_hopcount, info=serv_list_reply_info)
-        except Exception:
-            pass
-
-    if line.command == 235 and len(line.arguments) == 4: # ServListEnd
-        try:
-            i = 0
-            serv_list_end_target = decode(line.arguments[i])
-            i += 1
-            serv_list_end_mask = decode(line.arguments[i])
-            i += 1
-            serv_list_end_type = decode(line.arguments[i])
-            i += 1
-            # serv_list_end_line.arguments[i]: 'End of service listing'
-            i += 1
-            assert i == len(line.arguments)
-            return ServListEnd(source=source, target=serv_list_end_target, mask=serv_list_end_mask, type=serv_list_end_type)
-        except Exception:
-            pass
-
-    if line.command == 242 and len(line.arguments) == 2: # StatsUptime
-        try:
-            i = 0
-            stats_uptime_target = decode(line.arguments[i])
-            i += 1
-            stats_uptime_message = decode(line.arguments[i])
-            i += 1
-            assert i == len(line.arguments)
-            return StatsUptime(source=source, target=stats_uptime_target, message=stats_uptime_message)
-        except Exception:
-            pass
-
-    if line.command == 243 and len(line.arguments) == 5: # StatsOline
-        try:
-            i = 0
-            stats_oline_target = decode(line.arguments[i])
-            i += 1
-            # stats_oline_line.arguments[i]: 'O'
-            i += 1
-            stats_oline_hostmask = decode(line.arguments[i])
-            i += 1
-            # stats_oline_line.arguments[i]: '*'
-            i += 1
-            stats_oline_name = decode(line.arguments[i])
-            i += 1
-            assert i == len(line.arguments)
-            return StatsOline(source=source, target=stats_oline_target, hostmask=stats_oline_hostmask, name=stats_oline_name)
-        except Exception:
-            pass
-
-    if line.command == 251 and len(line.arguments) == 2: # LuserClient
-        try:
-            i = 0
-            luser_client_target = decode(line.arguments[i])
-            i += 1
-            luser_client_message = decode(line.arguments[i])
-            i += 1
-            assert i == len(line.arguments)
-            return LuserClient(source=source, target=luser_client_target, message=luser_client_message)
-        except Exception:
-            pass
-
-    if line.command == 252 and len(line.arguments) == 3: # LuserOp
-        try:
-            i = 0
-            luser_op_target = decode(line.arguments[i])
-            i += 1
-            luser_op_count = int(line.arguments[i])
-            i += 1
-            # luser_op_line.arguments[i]: 'operator(s) online'
-            i += 1
-            assert i == len(line.arguments)
-            return LuserOp(source=source, target=luser_op_target, count=luser_op_count)
-        except Exception:
-            pass
-
-    if line.command == 253 and len(line.arguments) == 3: # LuserUnknown
-        try:
-            i = 0
-            luser_unknown_target = decode(line.arguments[i])
-            i += 1
-            luser_unknown_count = int(line.arguments[i])
-            i += 1
-            # luser_unknown_line.arguments[i]: 'unknown connection(s)'
-            i += 1
-            assert i == len(line.arguments)
-            return LuserUnknown(source=source, target=luser_unknown_target, count=luser_unknown_count)
-        except Exception:
-            pass
-
-    if line.command == 254 and len(line.arguments) == 3: # LuserChannels
-        try:
-            i = 0
-            luser_channels_target = decode(line.arguments[i])
-            i += 1
-            luser_channels_count = int(line.arguments[i])
-            i += 1
-            # luser_channels_line.arguments[i]: 'channels formed'
-            i += 1
-            assert i == len(line.arguments)
-            return LuserChannels(source=source, target=luser_channels_target, count=luser_channels_count)
-        except Exception:
-            pass
-
-    if line.command == 255 and len(line.arguments) == 2: # LuserMe
-        try:
-            i = 0
-            luser_me_target = decode(line.arguments[i])
-            i += 1
-            luser_me_message = decode(line.arguments[i])
-            i += 1
-            assert i == len(line.arguments)
-            return LuserMe(source=source, target=luser_me_target, message=luser_me_message)
-        except Exception:
-            pass
-
-    if line.command == 256 and len(line.arguments) == 3: # AdminMe
-        try:
-            i = 0
-            admin_me_target = decode(line.arguments[i])
-            i += 1
-            admin_me_server = decode(line.arguments[i])
-            i += 1
-            # admin_me_line.arguments[i]: 'Administrative info'
-            i += 1
-            assert i == len(line.arguments)
-            return AdminMe(source=source, target=admin_me_target, server=admin_me_server)
-        except Exception:
-            pass
-
-    if line.command == 257 and len(line.arguments) == 2: # AdminLoc1
-        try:
-            i = 0
-            admin_loc1_target = decode(line.arguments[i])
-            i += 1
-            admin_loc1_message = decode(line.arguments[i])
-            i += 1
-            assert i == len(line.arguments)
-            return AdminLoc1(source=source, target=admin_loc1_target, message=admin_loc1_message)
-        except Exception:
-            pass
-
-    if line.command == 258 and len(line.arguments) == 2: # AdminLoc2
-        try:
-            i = 0
-            admin_loc2_target = decode(line.arguments[i])
-            i += 1
-            admin_loc2_message = decode(line.arguments[i])
-            i += 1
-            assert i == len(line.arguments)
-            return AdminLoc2(source=source, target=admin_loc2_target, message=admin_loc2_message)
-        except Exception:
-            pass
-
-    if line.command == 259 and len(line.arguments) == 2: # AdminEmail
-        try:
-            i = 0
-            admin_email_target = decode(line.arguments[i])
-            i += 1
-            admin_email_email = decode(line.arguments[i])
-            i += 1
-            assert i == len(line.arguments)
-            return AdminEmail(source=source, target=admin_email_target, email=admin_email_email)
-        except Exception:
-            pass
-
-    if line.command == 261 and len(line.arguments) == 4: # TraceLog
-        try:
-            i = 0
-            trace_log_target = decode(line.arguments[i])
-            i += 1
-            # trace_log_line.arguments[i]: 'File'
-            i += 1
-            trace_log_logfile = decode(line.arguments[i])
-            i += 1
-            trace_log_debug_level = decode(line.arguments[i])
-            i += 1
-            assert i == len(line.arguments)
-            return TraceLog(source=source, target=trace_log_target, logfile=trace_log_logfile, debug_level=trace_log_debug_level)
-        except Exception:
-            pass
-
-    if line.command == 262 and len(line.arguments) == 4: # TraceEnd
-        try:
-            i = 0
-            trace_end_target = decode(line.arguments[i])
-            i += 1
-            trace_end_server = decode(line.arguments[i])
-            i += 1
-            trace_end_version = decode(line.arguments[i])
-            i += 1
-            # trace_end_line.arguments[i]: 'End of TRACE'
-            i += 1
-            assert i == len(line.arguments)
-            return TraceEnd(source=source, target=trace_end_target, server=trace_end_server, version=trace_end_version)
-        except Exception:
-            pass
-
-    if line.command == 263 and len(line.arguments) == 3: # TryAgain
-        try:
-            i = 0
-            try_again_target = decode(line.arguments[i])
-            i += 1
-            try_again_command = decode(line.arguments[i])
-            i += 1
-            # try_again_line.arguments[i]: 'Please wait a while and try again.'
-            i += 1
-            assert i == len(line.arguments)
-            return TryAgain(source=source, target=try_again_target, command=try_again_command)
-        except Exception:
-            pass
-
-    if line.command == 301 and len(line.arguments) == 3: # AwayReply
-        try:
-            i = 0
-            away_reply_target = decode(line.arguments[i])
-            i += 1
-            away_reply_nickname = decode(line.arguments[i])
-            i += 1
-            away_reply_message = decode(line.arguments[i])
-            i += 1
-            assert i == len(line.arguments)
-            return AwayReply(source=source, target=away_reply_target, nickname=away_reply_nickname, message=away_reply_message)
-        except Exception:
-            pass
-
-    if line.command == 302 and len(line.arguments) == 2: # UserHostReply
-        try:
-            i = 0
-            user_host_reply_target = decode(line.arguments[i])
-            i += 1
-            user_host_reply_message = decode(line.arguments[i])
-            i += 1
-            assert i == len(line.arguments)
-            return UserHostReply(source=source, target=user_host_reply_target, message=user_host_reply_message)
-        except Exception:
-            pass
-
-    if line.command == 303 and len(line.arguments) == 2: # IsOnReply
-        try:
-            i = 0
-            is_on_reply_target = decode(line.arguments[i])
-            i += 1
-            is_on_reply_message = decode(line.arguments[i])
-            i += 1
-            assert i == len(line.arguments)
-            return IsOnReply(source=source, target=is_on_reply_target, message=is_on_reply_message)
-        except Exception:
-            pass
-
-    if line.command == 305 and len(line.arguments) == 2: # UnawayReply
-        try:
-            i = 0
-            unaway_reply_target = decode(line.arguments[i])
-            i += 1
-            # unaway_reply_line.arguments[i]: 'You are no longer marked as being away'
-            i += 1
-            assert i == len(line.arguments)
-            return UnawayReply(source=source, target=unaway_reply_target)
-        except Exception:
-            pass
-
-    if line.command == 306 and len(line.arguments) == 2: # NowAwayReply
-        try:
-            i = 0
-            now_away_reply_target = decode(line.arguments[i])
-            i += 1
-            # now_away_reply_line.arguments[i]: 'You have been marked as being away'
-            i += 1
-            assert i == len(line.arguments)
-            return NowAwayReply(source=source, target=now_away_reply_target)
-        except Exception:
-            pass
-
-    if line.command == 311 and len(line.arguments) == 6: # WhoIsUser
-        try:
-            i = 0
-            who_is_user_target = decode(line.arguments[i])
-            i += 1
-            who_is_user_nickname = decode(line.arguments[i])
-            i += 1
-            who_is_user_user = decode(line.arguments[i])
-            i += 1
-            who_is_user_host = decode(line.arguments[i])
-            i += 1
-            # who_is_user_line.arguments[i]: '*'
-            i += 1
-            who_is_user_realname = decode(line.arguments[i])
-            i += 1
-            assert i == len(line.arguments)
-            return WhoIsUser(source=source, target=who_is_user_target, nickname=who_is_user_nickname, user=who_is_user_user, host=who_is_user_host, realname=who_is_user_realname)
-        except Exception:
-            pass
-
-    if line.command == 312 and len(line.arguments) == 4: # WhoIsServer
-        try:
-            i = 0
-            who_is_server_target = decode(line.arguments[i])
-            i += 1
-            who_is_server_nickname = decode(line.arguments[i])
-            i += 1
-            who_is_server_server = decode(line.arguments[i])
-            i += 1
-            who_is_server_info = decode(line.arguments[i])
-            i += 1
-            assert i == len(line.arguments)
-            return WhoIsServer(source=source, target=who_is_server_target, nickname=who_is_server_nickname, server=who_is_server_server, info=who_is_server_info)
-        except Exception:
-            pass
-
-    if line.command == 313 and len(line.arguments) == 3: # WhoIsOperator
-        try:
-            i = 0
-            who_is_operator_target = decode(line.arguments[i])
-            i += 1
-            who_is_operator_nickname = decode(line.arguments[i])
-            i += 1
-            # who_is_operator_line.arguments[i]: 'is an IRC operator'
-            i += 1
-            assert i == len(line.arguments)
-            return WhoIsOperator(source=source, target=who_is_operator_target, nickname=who_is_operator_nickname)
-        except Exception:
-            pass
-
-    if line.command == 314 and len(line.arguments) == 6: # WhoWasUser
-        try:
-            i = 0
-            who_was_user_target = decode(line.arguments[i])
-            i += 1
-            who_was_user_nickname = decode(line.arguments[i])
-            i += 1
-            who_was_user_user = decode(line.arguments[i])
-            i += 1
-            who_was_user_host = decode(line.arguments[i])
-            i += 1
-            # who_was_user_line.arguments[i]: '*'
-            i += 1
-            who_was_user_realname = decode(line.arguments[i])
-            i += 1
-            assert i == len(line.arguments)
-            return WhoWasUser(source=source, target=who_was_user_target, nickname=who_was_user_nickname, user=who_was_user_user, host=who_was_user_host, realname=who_was_user_realname)
-        except Exception:
-            pass
-
-    if line.command == 315 and len(line.arguments) == 3: # WhoEnd
-        try:
-            i = 0
-            who_end_target = decode(line.arguments[i])
-            i += 1
-            who_end_name = decode(line.arguments[i])
-            i += 1
-            # who_end_line.arguments[i]: 'End of WHO list'
-            i += 1
-            assert i == len(line.arguments)
-            return WhoEnd(source=source, target=who_end_target, name=who_end_name)
-        except Exception:
-            pass
-
-    if line.command == 317 and len(line.arguments) == 4: # WhoIsIdle
-        try:
-            i = 0
-            who_is_idle_target = decode(line.arguments[i])
-            i += 1
-            who_is_idle_nickname = decode(line.arguments[i])
-            i += 1
-            who_is_idle_time = int(line.arguments[i])
-            i += 1
-            # who_is_idle_line.arguments[i]: 'seconds idle'
-            i += 1
-            assert i == len(line.arguments)
-            return WhoIsIdle(source=source, target=who_is_idle_target, nickname=who_is_idle_nickname, time=who_is_idle_time)
-        except Exception:
-            pass
-
-    if line.command == 318 and len(line.arguments) == 3: # WhoIsEnd
-        try:
-            i = 0
-            who_is_end_target = decode(line.arguments[i])
-            i += 1
-            who_is_end_nickname = decode(line.arguments[i])
-            i += 1
-            # who_is_end_line.arguments[i]: 'End of WHOIS list'
-            i += 1
-            assert i == len(line.arguments)
-            return WhoIsEnd(source=source, target=who_is_end_target, nickname=who_is_end_nickname)
-        except Exception:
-            pass
-
-    if line.command == 319 and len(line.arguments) == 3: # WhoIsChannels
-        try:
-            i = 0
-            who_is_channels_target = decode(line.arguments[i])
-            i += 1
-            who_is_channels_nickname = decode(line.arguments[i])
-            i += 1
-            who_is_channels_channels = decode(line.arguments[i])
-            i += 1
-            assert i == len(line.arguments)
-            return WhoIsChannels(source=source, target=who_is_channels_target, nickname=who_is_channels_nickname, channels=who_is_channels_channels)
-        except Exception:
-            pass
-
-    if line.command == 322 and len(line.arguments) == 4: # ListReply
-        try:
-            i = 0
-            list_reply_target = decode(line.arguments[i])
-            i += 1
-            list_reply_channel = decode(line.arguments[i])
-            i += 1
-            list_reply_visible = int(line.arguments[i])
-            i += 1
-            list_reply_topic = decode(line.arguments[i])
-            i += 1
-            assert i == len(line.arguments)
-            return ListReply(source=source, target=list_reply_target, channel=list_reply_channel, visible=list_reply_visible, topic=list_reply_topic)
-        except Exception:
-            pass
-
-    if line.command == 323 and len(line.arguments) == 2: # ListEnd
-        try:
-            i = 0
-            list_end_target = decode(line.arguments[i])
-            i += 1
-            # list_end_line.arguments[i]: 'End of LIST'
-            i += 1
-            assert i == len(line.arguments)
-            return ListEnd(source=source, target=list_end_target)
-        except Exception:
-            pass
-
-    if line.command == 324 and len(line.arguments) == 4: # ChannelModeIs
-        try:
-            i = 0
-            channel_mode_is_target = decode(line.arguments[i])
-            i += 1
-            channel_mode_is_channel = decode(line.arguments[i])
-            i += 1
-            channel_mode_is_mode = decode(line.arguments[i])
-            i += 1
-            channel_mode_is_params = decode(line.arguments[i])
-            i += 1
-            assert i == len(line.arguments)
-            return ChannelModeIs(source=source, target=channel_mode_is_target, channel=channel_mode_is_channel, mode=channel_mode_is_mode, params=channel_mode_is_params)
-        except Exception:
-            pass
-
-    if line.command == 325 and len(line.arguments) == 3: # UniqOpIs
-        try:
-            i = 0
-            uniq_op_is_target = decode(line.arguments[i])
-            i += 1
-            uniq_op_is_channel = decode(line.arguments[i])
-            i += 1
-            uniq_op_is_nickname = decode(line.arguments[i])
-            i += 1
-            assert i == len(line.arguments)
-            return UniqOpIs(source=source, target=uniq_op_is_target, channel=uniq_op_is_channel, nickname=uniq_op_is_nickname)
-        except Exception:
-            pass
-
-    if line.command == 331 and len(line.arguments) == 3: # NoTopicReply
-        try:
-            i = 0
-            no_topic_reply_target = decode(line.arguments[i])
-            i += 1
-            no_topic_reply_channel = decode(line.arguments[i])
-            i += 1
-            # no_topic_reply_line.arguments[i]: 'No topic is set'
-            i += 1
-            assert i == len(line.arguments)
-            return NoTopicReply(source=source, target=no_topic_reply_target, channel=no_topic_reply_channel)
-        except Exception:
-            pass
-
-    if line.command == 332 and len(line.arguments) == 3: # TopicReply
-        try:
-            i = 0
-            topic_reply_target = decode(line.arguments[i])
-            i += 1
-            topic_reply_channel = decode(line.arguments[i])
-            i += 1
-            topic_reply_topic = decode(line.arguments[i])
-            i += 1
-            assert i == len(line.arguments)
-            return TopicReply(source=source, target=topic_reply_target, channel=topic_reply_channel, topic=topic_reply_topic)
-        except Exception:
-            pass
-
-    if line.command == 341 and len(line.arguments) == 3: # Inviting
-        try:
-            i = 0
-            inviting_target = decode(line.arguments[i])
-            i += 1
-            inviting_channel = decode(line.arguments[i])
-            i += 1
-            inviting_nick = decode(line.arguments[i])
-            i += 1
-            assert i == len(line.arguments)
-            return Inviting(source=source, target=inviting_target, channel=inviting_channel, nick=inviting_nick)
-        except Exception:
-            pass
-
-    if line.command == 342 and len(line.arguments) == 3: # Summoning
-        try:
-            i = 0
-            summoning_target = decode(line.arguments[i])
-            i += 1
-            summoning_user = decode(line.arguments[i])
-            i += 1
-            # summoning_line.arguments[i]: 'Summoning user to IRC'
-            i += 1
-            assert i == len(line.arguments)
-            return Summoning(source=source, target=summoning_target, user=summoning_user)
-        except Exception:
-            pass
-
-    if line.command == 346 and len(line.arguments) == 3: # InviteList
-        try:
-            i = 0
-            invite_list_target = decode(line.arguments[i])
-            i += 1
-            invite_list_channel = decode(line.arguments[i])
-            i += 1
-            invite_list_mask = decode(line.arguments[i])
-            i += 1
-            assert i == len(line.arguments)
-            return InviteList(source=source, target=invite_list_target, channel=invite_list_channel, mask=invite_list_mask)
-        except Exception:
-            pass
-
-    if line.command == 347 and len(line.arguments) == 3: # InviteListEnd
-        try:
-            i = 0
-            invite_list_end_target = decode(line.arguments[i])
-            i += 1
-            invite_list_end_channel = decode(line.arguments[i])
-            i += 1
-            # invite_list_end_line.arguments[i]: 'End of channel invite list'
-            i += 1
-            assert i == len(line.arguments)
-            return InviteListEnd(source=source, target=invite_list_end_target, channel=invite_list_end_channel)
-        except Exception:
-            pass
-
-    if line.command == 348 and len(line.arguments) == 3: # ExceptList
-        try:
-            i = 0
-            except_list_target = decode(line.arguments[i])
-            i += 1
-            except_list_channel = decode(line.arguments[i])
-            i += 1
-            except_list_mask = decode(line.arguments[i])
-            i += 1
-            assert i == len(line.arguments)
-            return ExceptList(source=source, target=except_list_target, channel=except_list_channel, mask=except_list_mask)
-        except Exception:
-            pass
-
-    if line.command == 349 and len(line.arguments) == 3: # ExceptListEnd
-        try:
-            i = 0
-            except_list_end_target = decode(line.arguments[i])
-            i += 1
-            except_list_end_channel = decode(line.arguments[i])
-            i += 1
-            # except_list_end_line.arguments[i]: 'End of channel exception list'
-            i += 1
-            assert i == len(line.arguments)
-            return ExceptListEnd(source=source, target=except_list_end_target, channel=except_list_end_channel)
-        except Exception:
-            pass
-
-    if line.command == 351 and len(line.arguments) == 4: # VersionReply
-        try:
-            i = 0
-            version_reply_target = decode(line.arguments[i])
-            i += 1
-            version_reply_version = decode(line.arguments[i])
-            i += 1
-            version_reply_server = decode(line.arguments[i])
-            i += 1
-            version_reply_comments = decode(line.arguments[i])
-            i += 1
-            assert i == len(line.arguments)
-            return VersionReply(source=source, target=version_reply_target, version=version_reply_version, server=version_reply_server, comments=version_reply_comments)
-        except Exception:
-            pass
-
-    if line.command == 352 and len(line.arguments) == 8: # WhoReply
-        try:
-            i = 0
-            who_reply_target = decode(line.arguments[i])
-            i += 1
-            who_reply_channel = decode(line.arguments[i])
-            i += 1
-            who_reply_user = decode(line.arguments[i])
-            i += 1
-            who_reply_host = decode(line.arguments[i])
-            i += 1
-            who_reply_server = decode(line.arguments[i])
-            i += 1
-            who_reply_nickname = decode(line.arguments[i])
-            i += 1
-            who_reply_props = decode(line.arguments[i])
-            i += 1
-            who_reply_realname = decode(line.arguments[i])
-            i += 1
-            assert i == len(line.arguments)
-            return WhoReply(source=source, target=who_reply_target, channel=who_reply_channel, user=who_reply_user, host=who_reply_host, server=who_reply_server, nickname=who_reply_nickname, props=who_reply_props, realname=who_reply_realname)
-        except Exception:
-            pass
-
-    if line.command == 353 and len(line.arguments) == 4: # NamesReply
-        try:
-            i = 0
-            names_reply_target = decode(line.arguments[i])
-            i += 1
-            names_reply_mode = decode(line.arguments[i])
-            i += 1
-            names_reply_channel = decode(line.arguments[i])
-            i += 1
-            names_reply_nicknames = [decode(x) for x in line.arguments[i].split()]
-            i += 1
-            assert i == len(line.arguments)
-            return NamesReply(source=source, target=names_reply_target, mode=names_reply_mode, channel=names_reply_channel, nicknames=names_reply_nicknames)
-        except Exception:
-            pass
-
-    if line.command == 364 and len(line.arguments) == 4: # LinksReply
-        try:
-            i = 0
-            links_reply_target = decode(line.arguments[i])
-            i += 1
-            links_reply_mask = decode(line.arguments[i])
-            i += 1
-            links_reply_server = decode(line.arguments[i])
-            i += 1
-            links_reply_info = decode(line.arguments[i])
-            i += 1
-            assert i == len(line.arguments)
-            return LinksReply(source=source, target=links_reply_target, mask=links_reply_mask, server=links_reply_server, info=links_reply_info)
-        except Exception:
-            pass
-
-    if line.command == 365 and len(line.arguments) == 3: # LinksEnd
-        try:
-            i = 0
-            links_end_target = decode(line.arguments[i])
-            i += 1
-            links_end_mask = decode(line.arguments[i])
-            i += 1
-            # links_end_line.arguments[i]: 'End of LINKS list'
-            i += 1
-            assert i == len(line.arguments)
-            return LinksEnd(source=source, target=links_end_target, mask=links_end_mask)
-        except Exception:
-            pass
-
-    if line.command == 366 and len(line.arguments) == 3: # NamesEnd
-        try:
-            i = 0
-            names_end_target = decode(line.arguments[i])
-            i += 1
-            names_end_channel = decode(line.arguments[i])
-            i += 1
-            # names_end_line.arguments[i]: 'End of NAMES list'
-            i += 1
-            assert i == len(line.arguments)
-            return NamesEnd(source=source, target=names_end_target, channel=names_end_channel)
-        except Exception:
-            pass
-
-    if line.command == 367 and len(line.arguments) == 3: # BanList
-        try:
-            i = 0
-            ban_list_target = decode(line.arguments[i])
-            i += 1
-            ban_list_channel = decode(line.arguments[i])
-            i += 1
-            ban_list_mask = decode(line.arguments[i])
-            i += 1
-            assert i == len(line.arguments)
-            return BanList(source=source, target=ban_list_target, channel=ban_list_channel, mask=ban_list_mask)
-        except Exception:
-            pass
-
-    if line.command == 368 and len(line.arguments) == 3: # BanListEnd
-        try:
-            i = 0
-            ban_list_end_target = decode(line.arguments[i])
-            i += 1
-            ban_list_end_channel = decode(line.arguments[i])
-            i += 1
-            # ban_list_end_line.arguments[i]: 'End of channel ban list'
-            i += 1
-            assert i == len(line.arguments)
-            return BanListEnd(source=source, target=ban_list_end_target, channel=ban_list_end_channel)
-        except Exception:
-            pass
-
-    if line.command == 369 and len(line.arguments) == 3: # WhoWasEnd
-        try:
-            i = 0
-            who_was_end_target = decode(line.arguments[i])
-            i += 1
-            who_was_end_nickname = decode(line.arguments[i])
-            i += 1
-            # who_was_end_line.arguments[i]: 'End of WHOWAS'
-            i += 1
-            assert i == len(line.arguments)
-            return WhoWasEnd(source=source, target=who_was_end_target, nickname=who_was_end_nickname)
-        except Exception:
-            pass
-
-    if line.command == 371 and len(line.arguments) == 2: # InfoReply
-        try:
-            i = 0
-            info_reply_target = decode(line.arguments[i])
-            i += 1
-            info_reply_info = decode(line.arguments[i])
-            i += 1
-            assert i == len(line.arguments)
-            return InfoReply(source=source, target=info_reply_target, info=info_reply_info)
-        except Exception:
-            pass
-
-    if line.command == 372 and len(line.arguments) == 2: # MotdText
-        try:
-            i = 0
-            motd_text_target = decode(line.arguments[i])
-            i += 1
-            motd_text_message = decode(line.arguments[i])
-            i += 1
-            assert i == len(line.arguments)
-            return MotdText(source=source, target=motd_text_target, message=motd_text_message)
-        except Exception:
-            pass
-
-    if line.command == 374 and len(line.arguments) == 2: # InfoEnd
-        try:
-            i = 0
-            info_end_target = decode(line.arguments[i])
-            i += 1
-            # info_end_line.arguments[i]: 'End of INFO list'
-            i += 1
-            assert i == len(line.arguments)
-            return InfoEnd(source=source, target=info_end_target)
-        except Exception:
-            pass
-
-    if line.command == 375 and len(line.arguments) == 2: # MotdStart
-        try:
-            i = 0
-            motd_start_target = decode(line.arguments[i])
-            i += 1
-            motd_start_message = decode(line.arguments[i])
-            i += 1
-            assert i == len(line.arguments)
-            return MotdStart(source=source, target=motd_start_target, message=motd_start_message)
-        except Exception:
-            pass
-
-    if line.command == 376 and len(line.arguments) == 2: # MotdEnd
-        try:
-            i = 0
-            motd_end_target = decode(line.arguments[i])
-            i += 1
-            # motd_end_line.arguments[i]: 'End of MOTD command'
-            i += 1
-            assert i == len(line.arguments)
-            return MotdEnd(source=source, target=motd_end_target)
-        except Exception:
-            pass
-
-    if line.command == 381 and len(line.arguments) == 2: # YoureOper
-        try:
-            i = 0
-            youre_oper_target = decode(line.arguments[i])
-            i += 1
-            # youre_oper_line.arguments[i]: 'You are now an IRC operator'
-            i += 1
-            assert i == len(line.arguments)
-            return YoureOper(source=source, target=youre_oper_target)
-        except Exception:
-            pass
-
-    if line.command == 382 and len(line.arguments) == 3: # Rehashing
-        try:
-            i = 0
-            rehashing_target = decode(line.arguments[i])
-            i += 1
-            rehashing_file = decode(line.arguments[i])
-            i += 1
-            # rehashing_line.arguments[i]: 'Rehashing'
-            i += 1
-            assert i == len(line.arguments)
-            return Rehashing(source=source, target=rehashing_target, file=rehashing_file)
-        except Exception:
-            pass
-
-    if line.command == 383 and len(line.arguments) == 2: # YoureService
-        try:
-            i = 0
-            youre_service_target = decode(line.arguments[i])
-            i += 1
-            youre_service_message = decode(line.arguments[i])
-            i += 1
-            assert i == len(line.arguments)
-            return YoureService(source=source, target=youre_service_target, message=youre_service_message)
-        except Exception:
-            pass
-
-    if line.command == 391 and len(line.arguments) == 3: # TimeReply
-        try:
-            i = 0
-            time_reply_target = decode(line.arguments[i])
-            i += 1
-            time_reply_server = decode(line.arguments[i])
-            i += 1
-            time_reply_time = decode(line.arguments[i])
-            i += 1
-            assert i == len(line.arguments)
-            return TimeReply(source=source, target=time_reply_target, server=time_reply_server, time=time_reply_time)
-        except Exception:
-            pass
-
-    if line.command == 392 and len(line.arguments) == 2: # UsersStart
-        try:
-            i = 0
-            users_start_target = decode(line.arguments[i])
-            i += 1
-            # users_start_line.arguments[i]: 'UserID   Terminal  Host'
-            i += 1
-            assert i == len(line.arguments)
-            return UsersStart(source=source, target=users_start_target)
-        except Exception:
-            pass
-
-    if line.command == 393 and len(line.arguments) == 2: # UsersReply
-        try:
-            i = 0
-            users_reply_target = decode(line.arguments[i])
-            i += 1
-            users_reply_message = decode(line.arguments[i])
-            i += 1
-            assert i == len(line.arguments)
-            return UsersReply(source=source, target=users_reply_target, message=users_reply_message)
-        except Exception:
-            pass
-
-    if line.command == 394 and len(line.arguments) == 2: # UsersEnd
-        try:
-            i = 0
-            users_end_target = decode(line.arguments[i])
-            i += 1
-            # users_end_line.arguments[i]: 'End of users'
-            i += 1
-            assert i == len(line.arguments)
-            return UsersEnd(source=source, target=users_end_target)
-        except Exception:
-            pass
-
-    if line.command == 395 and len(line.arguments) == 2: # NoUsers
-        try:
-            i = 0
-            no_users_target = decode(line.arguments[i])
-            i += 1
-            # no_users_line.arguments[i]: 'Nobody logged in'
-            i += 1
-            assert i == len(line.arguments)
-            return NoUsers(source=source, target=no_users_target)
-        except Exception:
-            pass
-
-    if line.command == 401 and len(line.arguments) == 3: # NoSuchNick
-        try:
-            i = 0
-            no_such_nick_target = decode(line.arguments[i])
-            i += 1
-            no_such_nick_nickname = decode(line.arguments[i])
-            i += 1
-            # no_such_nick_line.arguments[i]: 'No such nick/channel'
-            i += 1
-            assert i == len(line.arguments)
-            return NoSuchNick(source=source, target=no_such_nick_target, nickname=no_such_nick_nickname)
-        except Exception:
-            pass
-
-    if line.command == 402 and len(line.arguments) == 3: # NoSuchServer
-        try:
-            i = 0
-            no_such_server_target = decode(line.arguments[i])
-            i += 1
-            no_such_server_server = decode(line.arguments[i])
-            i += 1
-            # no_such_server_line.arguments[i]: 'No such server'
-            i += 1
-            assert i == len(line.arguments)
-            return NoSuchServer(source=source, target=no_such_server_target, server=no_such_server_server)
-        except Exception:
-            pass
-
-    if line.command == 403 and len(line.arguments) == 3: # NoSuchChannel
-        try:
-            i = 0
-            no_such_channel_target = decode(line.arguments[i])
-            i += 1
-            no_such_channel_channel = decode(line.arguments[i])
-            i += 1
-            # no_such_channel_line.arguments[i]: 'No such channel'
-            i += 1
-            assert i == len(line.arguments)
-            return NoSuchChannel(source=source, target=no_such_channel_target, channel=no_such_channel_channel)
-        except Exception:
-            pass
-
-    if line.command == 404 and len(line.arguments) == 3: # CantSendToChan
-        try:
-            i = 0
-            cant_send_to_chan_target = decode(line.arguments[i])
-            i += 1
-            cant_send_to_chan_channel = decode(line.arguments[i])
-            i += 1
-            # cant_send_to_chan_line.arguments[i]: 'Cannot send to channel'
-            i += 1
-            assert i == len(line.arguments)
-            return CantSendToChan(source=source, target=cant_send_to_chan_target, channel=cant_send_to_chan_channel)
-        except Exception:
-            pass
-
-    if line.command == 405 and len(line.arguments) == 3: # TooManyChannels
-        try:
-            i = 0
-            too_many_channels_target = decode(line.arguments[i])
-            i += 1
-            too_many_channels_channel = decode(line.arguments[i])
-            i += 1
-            # too_many_channels_line.arguments[i]: 'You have joined too many channels'
-            i += 1
-            assert i == len(line.arguments)
-            return TooManyChannels(source=source, target=too_many_channels_target, channel=too_many_channels_channel)
-        except Exception:
-            pass
-
-    if line.command == 406 and len(line.arguments) == 3: # WasNoSuchNick
-        try:
-            i = 0
-            was_no_such_nick_target = decode(line.arguments[i])
-            i += 1
-            was_no_such_nick_nickname = decode(line.arguments[i])
-            i += 1
-            # was_no_such_nick_line.arguments[i]: 'There was no such nickname'
-            i += 1
-            assert i == len(line.arguments)
-            return WasNoSuchNick(source=source, target=was_no_such_nick_target, nickname=was_no_such_nick_nickname)
-        except Exception:
-            pass
-
-    if line.command == 407 and len(line.arguments) == 3: # TooManyTargets
-        try:
-            i = 0
-            too_many_targets_target = decode(line.arguments[i])
-            i += 1
-            too_many_targets_orig_target = decode(line.arguments[i])
-            i += 1
-            too_many_targets_message = decode(line.arguments[i])
-            i += 1
-            assert i == len(line.arguments)
-            return TooManyTargets(source=source, target=too_many_targets_target, orig_target=too_many_targets_orig_target, message=too_many_targets_message)
-        except Exception:
-            pass
-
-    if line.command == 408 and len(line.arguments) == 3: # NoSuchService
-        try:
-            i = 0
-            no_such_service_target = decode(line.arguments[i])
-            i += 1
-            no_such_service_name = decode(line.arguments[i])
-            i += 1
-            # no_such_service_line.arguments[i]: 'No such service'
-            i += 1
-            assert i == len(line.arguments)
-            return NoSuchService(source=source, target=no_such_service_target, name=no_such_service_name)
-        except Exception:
-            pass
-
-    if line.command == 409 and len(line.arguments) == 2: # NoOrigin
-        try:
-            i = 0
-            no_origin_target = decode(line.arguments[i])
-            i += 1
-            # no_origin_line.arguments[i]: 'No origin specified'
-            i += 1
-            assert i == len(line.arguments)
-            return NoOrigin(source=source, target=no_origin_target)
-        except Exception:
-            pass
-
-    if line.command == 411 and len(line.arguments) == 2: # NoRecipient
-        try:
-            i = 0
-            no_recipient_target = decode(line.arguments[i])
-            i += 1
-            # no_recipient_line.arguments[i]: 'No recipient given'
-            i += 1
-            assert i == len(line.arguments)
-            return NoRecipient(source=source, target=no_recipient_target)
-        except Exception:
-            pass
-
-    if line.command == 412 and len(line.arguments) == 2: # NoTextToSend
-        try:
-            i = 0
-            no_text_to_send_target = decode(line.arguments[i])
-            i += 1
-            # no_text_to_send_line.arguments[i]: 'No text to send'
-            i += 1
-            assert i == len(line.arguments)
-            return NoTextToSend(source=source, target=no_text_to_send_target)
-        except Exception:
-            pass
-
-    if line.command == 413 and len(line.arguments) == 3: # NoTopLevel
-        try:
-            i = 0
-            no_top_level_target = decode(line.arguments[i])
-            i += 1
-            no_top_level_mask = decode(line.arguments[i])
-            i += 1
-            # no_top_level_line.arguments[i]: 'No toplevel domain specified'
-            i += 1
-            assert i == len(line.arguments)
-            return NoTopLevel(source=source, target=no_top_level_target, mask=no_top_level_mask)
-        except Exception:
-            pass
-
-    if line.command == 414 and len(line.arguments) == 3: # WildTopLevel
-        try:
-            i = 0
-            wild_top_level_target = decode(line.arguments[i])
-            i += 1
-            wild_top_level_mask = decode(line.arguments[i])
-            i += 1
-            # wild_top_level_line.arguments[i]: 'Wildcard in toplevel domain'
-            i += 1
-            assert i == len(line.arguments)
-            return WildTopLevel(source=source, target=wild_top_level_target, mask=wild_top_level_mask)
-        except Exception:
-            pass
-
-    if line.command == 415 and len(line.arguments) == 3: # BadMask
-        try:
-            i = 0
-            bad_mask_target = decode(line.arguments[i])
-            i += 1
-            bad_mask_mask = decode(line.arguments[i])
-            i += 1
-            # bad_mask_line.arguments[i]: 'Bad Server/host mask'
-            i += 1
-            assert i == len(line.arguments)
-            return BadMask(source=source, target=bad_mask_target, mask=bad_mask_mask)
-        except Exception:
-            pass
-
-    if line.command == 421 and len(line.arguments) == 3: # UnknownCommand
-        try:
-            i = 0
-            unknown_command_target = decode(line.arguments[i])
-            i += 1
-            unknown_command_command = decode(line.arguments[i])
-            i += 1
-            # unknown_command_line.arguments[i]: 'Unknown command'
-            i += 1
-            assert i == len(line.arguments)
-            return UnknownCommand(source=source, target=unknown_command_target, command=unknown_command_command)
-        except Exception:
-            pass
-
-    if line.command == 422 and len(line.arguments) == 2: # NoMotd
-        try:
-            i = 0
-            no_motd_target = decode(line.arguments[i])
-            i += 1
-            # no_motd_line.arguments[i]: 'MOTD File is missing'
-            i += 1
-            assert i == len(line.arguments)
-            return NoMotd(source=source, target=no_motd_target)
-        except Exception:
-            pass
-
-    if line.command == 423 and len(line.arguments) == 3: # NoAdminInfo
-        try:
-            i = 0
-            no_admin_info_target = decode(line.arguments[i])
-            i += 1
-            no_admin_info_server = decode(line.arguments[i])
-            i += 1
-            # no_admin_info_line.arguments[i]: 'No administrative info available'
-            i += 1
-            assert i == len(line.arguments)
-            return NoAdminInfo(source=source, target=no_admin_info_target, server=no_admin_info_server)
-        except Exception:
-            pass
-
-    if line.command == 424 and len(line.arguments) == 2: # FileError
-        try:
-            i = 0
-            file_error_target = decode(line.arguments[i])
-            i += 1
-            file_error_message = decode(line.arguments[i])
-            i += 1
-            assert i == len(line.arguments)
-            return FileError(source=source, target=file_error_target, message=file_error_message)
-        except Exception:
-            pass
-
-    if line.command == 431 and len(line.arguments) == 2: # NoNicknameGiven
-        try:
-            i = 0
-            no_nickname_given_target = decode(line.arguments[i])
-            i += 1
-            # no_nickname_given_line.arguments[i]: 'No nickname given'
-            i += 1
-            assert i == len(line.arguments)
-            return NoNicknameGiven(source=source, target=no_nickname_given_target)
-        except Exception:
-            pass
-
-    if line.command == 432 and len(line.arguments) == 3: # ErroneusNickname
-        try:
-            i = 0
-            erroneus_nickname_target = decode(line.arguments[i])
-            i += 1
-            erroneus_nickname_nickname = decode(line.arguments[i])
-            i += 1
-            # erroneus_nickname_line.arguments[i]: 'Erroneous nickname'
-            i += 1
-            assert i == len(line.arguments)
-            return ErroneusNickname(source=source, target=erroneus_nickname_target, nickname=erroneus_nickname_nickname)
-        except Exception:
-            pass
-
-    if line.command == 433 and len(line.arguments) == 3: # NicknameInUse
-        try:
-            i = 0
-            nickname_in_use_target = decode(line.arguments[i])
-            i += 1
-            nickname_in_use_nickname = decode(line.arguments[i])
-            i += 1
-            # nickname_in_use_line.arguments[i]: 'Nickname is already in use'
-            i += 1
-            assert i == len(line.arguments)
-            return NicknameInUse(source=source, target=nickname_in_use_target, nickname=nickname_in_use_nickname)
-        except Exception:
-            pass
-
-    if line.command == 436 and len(line.arguments) == 3: # NickCollision
-        try:
-            i = 0
-            nick_collision_target = decode(line.arguments[i])
-            i += 1
-            nick_collision_nickname = decode(line.arguments[i])
-            i += 1
-            nick_collision_message = decode(line.arguments[i])
-            i += 1
-            assert i == len(line.arguments)
-            return NickCollision(source=source, target=nick_collision_target, nickname=nick_collision_nickname, message=nick_collision_message)
-        except Exception:
-            pass
-
-    if line.command == 437 and len(line.arguments) == 3: # UnavailResource
-        try:
-            i = 0
-            unavail_resource_target = decode(line.arguments[i])
-            i += 1
-            unavail_resource_name = decode(line.arguments[i])
-            i += 1
-            # unavail_resource_line.arguments[i]: 'Nick/channel is temporarily unavailable'
-            i += 1
-            assert i == len(line.arguments)
-            return UnavailResource(source=source, target=unavail_resource_target, name=unavail_resource_name)
-        except Exception:
-            pass
-
-    if line.command == 441 and len(line.arguments) == 4: # UserNotInChannel
-        try:
-            i = 0
-            user_not_in_channel_target = decode(line.arguments[i])
-            i += 1
-            user_not_in_channel_nickname = decode(line.arguments[i])
-            i += 1
-            user_not_in_channel_channel = decode(line.arguments[i])
-            i += 1
-            # user_not_in_channel_line.arguments[i]: "They aren't on that channel"
-            i += 1
-            assert i == len(line.arguments)
-            return UserNotInChannel(source=source, target=user_not_in_channel_target, nickname=user_not_in_channel_nickname, channel=user_not_in_channel_channel)
-        except Exception:
-            pass
-
-    if line.command == 442 and len(line.arguments) == 3: # NotOnChannel
-        try:
-            i = 0
-            not_on_channel_target = decode(line.arguments[i])
-            i += 1
-            not_on_channel_channel = decode(line.arguments[i])
-            i += 1
-            # not_on_channel_line.arguments[i]: "You're not on that channel"
-            i += 1
-            assert i == len(line.arguments)
-            return NotOnChannel(source=source, target=not_on_channel_target, channel=not_on_channel_channel)
-        except Exception:
-            pass
-
-    if line.command == 443 and len(line.arguments) == 4: # UserOnChannel
-        try:
-            i = 0
-            user_on_channel_target = decode(line.arguments[i])
-            i += 1
-            user_on_channel_user = decode(line.arguments[i])
-            i += 1
-            user_on_channel_channel = decode(line.arguments[i])
-            i += 1
-            # user_on_channel_line.arguments[i]: 'is already on channel'
-            i += 1
-            assert i == len(line.arguments)
-            return UserOnChannel(source=source, target=user_on_channel_target, user=user_on_channel_user, channel=user_on_channel_channel)
-        except Exception:
-            pass
-
-    if line.command == 444 and len(line.arguments) == 3: # NoLogin
-        try:
-            i = 0
-            no_login_target = decode(line.arguments[i])
-            i += 1
-            no_login_user = decode(line.arguments[i])
-            i += 1
-            # no_login_line.arguments[i]: 'User not logged in'
-            i += 1
-            assert i == len(line.arguments)
-            return NoLogin(source=source, target=no_login_target, user=no_login_user)
-        except Exception:
-            pass
-
-    if line.command == 445 and len(line.arguments) == 2: # SummonDisabled
-        try:
-            i = 0
-            summon_disabled_target = decode(line.arguments[i])
-            i += 1
-            # summon_disabled_line.arguments[i]: 'SUMMON has been disabled'
-            i += 1
-            assert i == len(line.arguments)
-            return SummonDisabled(source=source, target=summon_disabled_target)
-        except Exception:
-            pass
-
-    if line.command == 446 and len(line.arguments) == 2: # UsersDisabled
-        try:
-            i = 0
-            users_disabled_target = decode(line.arguments[i])
-            i += 1
-            # users_disabled_line.arguments[i]: 'USERS has been disabled'
-            i += 1
-            assert i == len(line.arguments)
-            return UsersDisabled(source=source, target=users_disabled_target)
-        except Exception:
-            pass
-
-    if line.command == 451 and len(line.arguments) == 2: # NotRegistered
-        try:
-            i = 0
-            not_registered_target = decode(line.arguments[i])
-            i += 1
-            # not_registered_line.arguments[i]: 'You have not registered'
-            i += 1
-            assert i == len(line.arguments)
-            return NotRegistered(source=source, target=not_registered_target)
-        except Exception:
-            pass
-
-    if line.command == 461 and len(line.arguments) == 3: # NeedMoreParams
-        try:
-            i = 0
-            need_more_params_target = decode(line.arguments[i])
-            i += 1
-            need_more_params_command = decode(line.arguments[i])
-            i += 1
-            # need_more_params_line.arguments[i]: 'Not enough parameters'
-            i += 1
-            assert i == len(line.arguments)
-            return NeedMoreParams(source=source, target=need_more_params_target, command=need_more_params_command)
-        except Exception:
-            pass
-
-    if line.command == 462 and len(line.arguments) == 2: # AlreadyRegistered
-        try:
-            i = 0
-            already_registered_target = decode(line.arguments[i])
-            i += 1
-            # already_registered_line.arguments[i]: 'Unauthorized command (already registered)'
-            i += 1
-            assert i == len(line.arguments)
-            return AlreadyRegistered(source=source, target=already_registered_target)
-        except Exception:
-            pass
-
-    if line.command == 463 and len(line.arguments) == 2: # NoPermForHost
-        try:
-            i = 0
-            no_perm_for_host_target = decode(line.arguments[i])
-            i += 1
-            # no_perm_for_host_line.arguments[i]: "Your host isn't among the privileged"
-            i += 1
-            assert i == len(line.arguments)
-            return NoPermForHost(source=source, target=no_perm_for_host_target)
-        except Exception:
-            pass
-
-    if line.command == 464 and len(line.arguments) == 2: # PasswordMismatch
-        try:
-            i = 0
-            password_mismatch_target = decode(line.arguments[i])
-            i += 1
-            # password_mismatch_line.arguments[i]: 'Password incorrect'
-            i += 1
-            assert i == len(line.arguments)
-            return PasswordMismatch(source=source, target=password_mismatch_target)
-        except Exception:
-            pass
-
-    if line.command == 465 and len(line.arguments) == 2: # YoureBannedCreep
-        try:
-            i = 0
-            youre_banned_creep_target = decode(line.arguments[i])
-            i += 1
-            # youre_banned_creep_line.arguments[i]: 'You are banned from this server'
-            i += 1
-            assert i == len(line.arguments)
-            return YoureBannedCreep(source=source, target=youre_banned_creep_target)
-        except Exception:
-            pass
-
-    if line.command == 466 and len(line.arguments) == 1: # YouWillBeBanned
-        try:
-            i = 0
-            you_will_be_banned_target = decode(line.arguments[i])
-            i += 1
-            assert i == len(line.arguments)
-            return YouWillBeBanned(source=source, target=you_will_be_banned_target)
-        except Exception:
-            pass
-
-    if line.command == 467 and len(line.arguments) == 3: # KeySet
-        try:
-            i = 0
-            key_set_target = decode(line.arguments[i])
-            i += 1
-            key_set_channel = decode(line.arguments[i])
-            i += 1
-            # key_set_line.arguments[i]: 'Channel key already set'
-            i += 1
-            assert i == len(line.arguments)
-            return KeySet(source=source, target=key_set_target, channel=key_set_channel)
-        except Exception:
-            pass
-
-    if line.command == 471 and len(line.arguments) == 3: # ChannelIsFull
-        try:
-            i = 0
-            channel_is_full_target = decode(line.arguments[i])
-            i += 1
-            channel_is_full_channel = decode(line.arguments[i])
-            i += 1
-            # channel_is_full_line.arguments[i]: 'Cannot join channel (+l)'
-            i += 1
-            assert i == len(line.arguments)
-            return ChannelIsFull(source=source, target=channel_is_full_target, channel=channel_is_full_channel)
-        except Exception:
-            pass
-
-    if line.command == 472 and len(line.arguments) == 3: # UnknownMode
-        try:
-            i = 0
-            unknown_mode_target = decode(line.arguments[i])
-            i += 1
-            unknown_mode_char = decode(line.arguments[i])
-            i += 1
-            # unknown_mode_line.arguments[i]: 'is unknown mode char to me'
-            i += 1
-            assert i == len(line.arguments)
-            return UnknownMode(source=source, target=unknown_mode_target, char=unknown_mode_char)
-        except Exception:
-            pass
-
-    if line.command == 473 and len(line.arguments) == 3: # InviteOnlyChan
-        try:
-            i = 0
-            invite_only_chan_target = decode(line.arguments[i])
-            i += 1
-            invite_only_chan_channel = decode(line.arguments[i])
-            i += 1
-            # invite_only_chan_line.arguments[i]: 'Cannot join channel (+i)'
-            i += 1
-            assert i == len(line.arguments)
-            return InviteOnlyChan(source=source, target=invite_only_chan_target, channel=invite_only_chan_channel)
-        except Exception:
-            pass
-
-    if line.command == 474 and len(line.arguments) == 3: # BannedFromChan
-        try:
-            i = 0
-            banned_from_chan_target = decode(line.arguments[i])
-            i += 1
-            banned_from_chan_channel = decode(line.arguments[i])
-            i += 1
-            # banned_from_chan_line.arguments[i]: 'Cannot join channel (+b)'
-            i += 1
-            assert i == len(line.arguments)
-            return BannedFromChan(source=source, target=banned_from_chan_target, channel=banned_from_chan_channel)
-        except Exception:
-            pass
-
-    if line.command == 475 and len(line.arguments) == 3: # BadChannelKey
-        try:
-            i = 0
-            bad_channel_key_target = decode(line.arguments[i])
-            i += 1
-            bad_channel_key_channel = decode(line.arguments[i])
-            i += 1
-            # bad_channel_key_line.arguments[i]: 'Cannot join channel (+k)'
-            i += 1
-            assert i == len(line.arguments)
-            return BadChannelKey(source=source, target=bad_channel_key_target, channel=bad_channel_key_channel)
-        except Exception:
-            pass
-
-    if line.command == 476 and len(line.arguments) == 3: # BadChanMask
-        try:
-            i = 0
-            bad_chan_mask_target = decode(line.arguments[i])
-            i += 1
-            bad_chan_mask_channel = decode(line.arguments[i])
-            i += 1
-            # bad_chan_mask_line.arguments[i]: 'Bad Channel Mask'
-            i += 1
-            assert i == len(line.arguments)
-            return BadChanMask(source=source, target=bad_chan_mask_target, channel=bad_chan_mask_channel)
-        except Exception:
-            pass
-
-    if line.command == 477 and len(line.arguments) == 3: # NoChanModes
-        try:
-            i = 0
-            no_chan_modes_target = decode(line.arguments[i])
-            i += 1
-            no_chan_modes_channel = decode(line.arguments[i])
-            i += 1
-            # no_chan_modes_line.arguments[i]: "Channel doesn't support modes"
-            i += 1
-            assert i == len(line.arguments)
-            return NoChanModes(source=source, target=no_chan_modes_target, channel=no_chan_modes_channel)
-        except Exception:
-            pass
-
-    if line.command == 478 and len(line.arguments) == 4: # BanListFull
-        try:
-            i = 0
-            ban_list_full_target = decode(line.arguments[i])
-            i += 1
-            ban_list_full_channel = decode(line.arguments[i])
-            i += 1
-            ban_list_full_char = decode(line.arguments[i])
-            i += 1
-            # ban_list_full_line.arguments[i]: 'Channel list is full'
-            i += 1
-            assert i == len(line.arguments)
-            return BanListFull(source=source, target=ban_list_full_target, channel=ban_list_full_channel, char=ban_list_full_char)
-        except Exception:
-            pass
-
-    if line.command == 481 and len(line.arguments) == 2: # NoPrivileges
-        try:
-            i = 0
-            no_privileges_target = decode(line.arguments[i])
-            i += 1
-            # no_privileges_line.arguments[i]: "Permission Denied- You're not an IRC operator"
-            i += 1
-            assert i == len(line.arguments)
-            return NoPrivileges(source=source, target=no_privileges_target)
-        except Exception:
-            pass
-
-    if line.command == 482 and len(line.arguments) == 3: # ChanOpPrivsNeeded
-        try:
-            i = 0
-            chan_op_privs_needed_target = decode(line.arguments[i])
-            i += 1
-            chan_op_privs_needed_channel = decode(line.arguments[i])
-            i += 1
-            # chan_op_privs_needed_line.arguments[i]: "You're not channel operator"
-            i += 1
-            assert i == len(line.arguments)
-            return ChanOpPrivsNeeded(source=source, target=chan_op_privs_needed_target, channel=chan_op_privs_needed_channel)
-        except Exception:
-            pass
-
-    if line.command == 483 and len(line.arguments) == 2: # CantKillServer
-        try:
-            i = 0
-            cant_kill_server_target = decode(line.arguments[i])
-            i += 1
-            # cant_kill_server_line.arguments[i]: "You can't kill a server!"
-            i += 1
-            assert i == len(line.arguments)
-            return CantKillServer(source=source, target=cant_kill_server_target)
-        except Exception:
-            pass
-
-    if line.command == 484 and len(line.arguments) == 2: # Restricted
-        try:
-            i = 0
-            restricted_target = decode(line.arguments[i])
-            i += 1
-            # restricted_line.arguments[i]: 'Your connection is restricted!'
-            i += 1
-            assert i == len(line.arguments)
-            return Restricted(source=source, target=restricted_target)
-        except Exception:
-            pass
-
-    if line.command == 485 and len(line.arguments) == 2: # UniqOpPrivsNeeded
-        try:
-            i = 0
-            uniq_op_privs_needed_target = decode(line.arguments[i])
-            i += 1
-            # uniq_op_privs_needed_line.arguments[i]: "You're not the original channel operator"
-            i += 1
-            assert i == len(line.arguments)
-            return UniqOpPrivsNeeded(source=source, target=uniq_op_privs_needed_target)
-        except Exception:
-            pass
-
-    if line.command == 491 and len(line.arguments) == 2: # NoOperHost
-        try:
-            i = 0
-            no_oper_host_target = decode(line.arguments[i])
-            i += 1
-            # no_oper_host_line.arguments[i]: 'No O-lines for your host'
-            i += 1
-            assert i == len(line.arguments)
-            return NoOperHost(source=source, target=no_oper_host_target)
-        except Exception:
-            pass
-
-    if line.command == 501 and len(line.arguments) == 2: # UserModeUnknownFlag
-        try:
-            i = 0
-            user_mode_unknown_flag_target = decode(line.arguments[i])
-            i += 1
-            # user_mode_unknown_flag_line.arguments[i]: 'Unknown MODE flag'
-            i += 1
-            assert i == len(line.arguments)
-            return UserModeUnknownFlag(source=source, target=user_mode_unknown_flag_target)
-        except Exception:
-            pass
-
-    if line.command == 502 and len(line.arguments) == 2: # UsersDontMatch
-        try:
-            i = 0
-            users_dont_match_target = decode(line.arguments[i])
-            i += 1
-            # users_dont_match_line.arguments[i]: 'Cannot change mode for other users'
-            i += 1
-            assert i == len(line.arguments)
-            return UsersDontMatch(source=source, target=users_dont_match_target)
-        except Exception:
-            pass
-
-    return Unknown(source, line.command, line.arguments)
 
 class Pass(Message):
     """
@@ -2599,6 +81,21 @@ class Pass(Message):
 
     def __repr__(self) -> str:
         return 'Pass(source={}, password={})'.format(repr(self.source), repr(self.password))
+
+    @classmethod
+    def from_line(cls, line: Line, decode: typing.Callable[[bytes], str] = lambda b: b.decode("utf-8")) -> Message:
+        source = None
+        if line.source is not None:
+            source = decode(line.source)
+        if line.command != b'PASS':
+            raise ValueError("incorrect verb")
+        if not (len(line.arguments) == 1):
+            raise ValueError("wrong number of arguments")
+        i = 0
+        password = decode(line.arguments[i])
+        i += 1
+        assert i == len(line.arguments)
+        return cls(source=source, password=password)
 
     def to_line(self, encode: typing.Callable[[str], bytes] = lambda s: s.encode("utf-8")) -> Line:
         source = None
@@ -2622,6 +119,21 @@ class Nick(Message):
 
     def __repr__(self) -> str:
         return 'Nick(source={}, nickname={})'.format(repr(self.source), repr(self.nickname))
+
+    @classmethod
+    def from_line(cls, line: Line, decode: typing.Callable[[bytes], str] = lambda b: b.decode("utf-8")) -> Message:
+        source = None
+        if line.source is not None:
+            source = decode(line.source)
+        if line.command != b'NICK':
+            raise ValueError("incorrect verb")
+        if not (len(line.arguments) == 1):
+            raise ValueError("wrong number of arguments")
+        i = 0
+        nickname = decode(line.arguments[i])
+        i += 1
+        assert i == len(line.arguments)
+        return cls(source=source, nickname=nickname)
 
     def to_line(self, encode: typing.Callable[[str], bytes] = lambda s: s.encode("utf-8")) -> Line:
         source = None
@@ -2647,6 +159,27 @@ class User(Message):
 
     def __repr__(self) -> str:
         return 'User(source={}, user={}, mode={}, realname={})'.format(repr(self.source), repr(self.user), repr(self.mode), repr(self.realname))
+
+    @classmethod
+    def from_line(cls, line: Line, decode: typing.Callable[[bytes], str] = lambda b: b.decode("utf-8")) -> Message:
+        source = None
+        if line.source is not None:
+            source = decode(line.source)
+        if line.command != b'USER':
+            raise ValueError("incorrect verb")
+        if not (len(line.arguments) == 4):
+            raise ValueError("wrong number of arguments")
+        i = 0
+        user = decode(line.arguments[i])
+        i += 1
+        mode = int(line.arguments[i])
+        i += 1
+        # line.arguments[i]: '*'
+        i += 1
+        realname = decode(line.arguments[i])
+        i += 1
+        assert i == len(line.arguments)
+        return cls(source=source, user=user, mode=mode, realname=realname)
 
     def to_line(self, encode: typing.Callable[[str], bytes] = lambda s: s.encode("utf-8")) -> Line:
         source = None
@@ -2675,6 +208,23 @@ class Oper(Message):
     def __repr__(self) -> str:
         return 'Oper(source={}, name={}, password={})'.format(repr(self.source), repr(self.name), repr(self.password))
 
+    @classmethod
+    def from_line(cls, line: Line, decode: typing.Callable[[bytes], str] = lambda b: b.decode("utf-8")) -> Message:
+        source = None
+        if line.source is not None:
+            source = decode(line.source)
+        if line.command != b'OPER':
+            raise ValueError("incorrect verb")
+        if not (len(line.arguments) == 2):
+            raise ValueError("wrong number of arguments")
+        i = 0
+        name = decode(line.arguments[i])
+        i += 1
+        password = decode(line.arguments[i])
+        i += 1
+        assert i == len(line.arguments)
+        return cls(source=source, name=name, password=password)
+
     def to_line(self, encode: typing.Callable[[str], bytes] = lambda s: s.encode("utf-8")) -> Line:
         source = None
         if self.source is not None:
@@ -2702,6 +252,23 @@ class Mode(Message):
     def __repr__(self) -> str:
         return 'Mode(source={}, name={}, mode={})'.format(repr(self.source), repr(self.name), repr(self.mode))
 
+    @classmethod
+    def from_line(cls, line: Line, decode: typing.Callable[[bytes], str] = lambda b: b.decode("utf-8")) -> Message:
+        source = None
+        if line.source is not None:
+            source = decode(line.source)
+        if line.command != b'MODE':
+            raise ValueError("incorrect verb")
+        if not (len(line.arguments) == 2):
+            raise ValueError("wrong number of arguments")
+        i = 0
+        name = decode(line.arguments[i])
+        i += 1
+        mode = decode(line.arguments[i])
+        i += 1
+        assert i == len(line.arguments)
+        return cls(source=source, name=name, mode=mode)
+
     def to_line(self, encode: typing.Callable[[str], bytes] = lambda s: s.encode("utf-8")) -> Line:
         source = None
         if self.source is not None:
@@ -2728,6 +295,31 @@ class Service(Message):
 
     def __repr__(self) -> str:
         return 'Service(source={}, nickname={}, distribution={}, type={}, info={})'.format(repr(self.source), repr(self.nickname), repr(self.distribution), repr(self.type), repr(self.info))
+
+    @classmethod
+    def from_line(cls, line: Line, decode: typing.Callable[[bytes], str] = lambda b: b.decode("utf-8")) -> Message:
+        source = None
+        if line.source is not None:
+            source = decode(line.source)
+        if line.command != b'SERVICE':
+            raise ValueError("incorrect verb")
+        if not (len(line.arguments) == 6):
+            raise ValueError("wrong number of arguments")
+        i = 0
+        nickname = decode(line.arguments[i])
+        i += 1
+        # line.arguments[i]: '*'
+        i += 1
+        distribution = decode(line.arguments[i])
+        i += 1
+        type = int(line.arguments[i])
+        i += 1
+        # line.arguments[i]: '0'
+        i += 1
+        info = decode(line.arguments[i])
+        i += 1
+        assert i == len(line.arguments)
+        return cls(source=source, nickname=nickname, distribution=distribution, type=type, info=info)
 
     def to_line(self, encode: typing.Callable[[str], bytes] = lambda s: s.encode("utf-8")) -> Line:
         source = None
@@ -2757,6 +349,24 @@ class Quit(Message):
     def __repr__(self) -> str:
         return 'Quit(source={}, message={})'.format(repr(self.source), repr(self.message))
 
+    @classmethod
+    def from_line(cls, line: Line, decode: typing.Callable[[bytes], str] = lambda b: b.decode("utf-8")) -> Message:
+        source = None
+        if line.source is not None:
+            source = decode(line.source)
+        if line.command != b'QUIT':
+            raise ValueError("incorrect verb")
+        if not (len(line.arguments) <= 1):
+            raise ValueError("wrong number of arguments")
+        i = 0
+        if len(line.arguments) > 0:
+            message = decode(line.arguments[i])
+            i += 1
+        else:
+            message = None
+        assert i == len(line.arguments)
+        return cls(source=source, message=message)
+
     def to_line(self, encode: typing.Callable[[str], bytes] = lambda s: s.encode("utf-8")) -> Line:
         source = None
         if self.source is not None:
@@ -2782,6 +392,23 @@ class SQuit(Message):
     def __repr__(self) -> str:
         return 'SQuit(source={}, server={}, comment={})'.format(repr(self.source), repr(self.server), repr(self.comment))
 
+    @classmethod
+    def from_line(cls, line: Line, decode: typing.Callable[[bytes], str] = lambda b: b.decode("utf-8")) -> Message:
+        source = None
+        if line.source is not None:
+            source = decode(line.source)
+        if line.command != b'SQUIT':
+            raise ValueError("incorrect verb")
+        if not (len(line.arguments) == 2):
+            raise ValueError("wrong number of arguments")
+        i = 0
+        server = decode(line.arguments[i])
+        i += 1
+        comment = decode(line.arguments[i])
+        i += 1
+        assert i == len(line.arguments)
+        return cls(source=source, server=server, comment=comment)
+
     def to_line(self, encode: typing.Callable[[str], bytes] = lambda s: s.encode("utf-8")) -> Line:
         source = None
         if self.source is not None:
@@ -2806,6 +433,26 @@ class ChannelJoin(Message):
 
     def __repr__(self) -> str:
         return 'ChannelJoin(source={}, channels={}, keys={})'.format(repr(self.source), repr(self.channels), repr(self.keys))
+
+    @classmethod
+    def from_line(cls, line: Line, decode: typing.Callable[[bytes], str] = lambda b: b.decode("utf-8")) -> Message:
+        source = None
+        if line.source is not None:
+            source = decode(line.source)
+        if line.command != b'JOIN':
+            raise ValueError("incorrect verb")
+        if not (1 <= len(line.arguments) <= 2):
+            raise ValueError("wrong number of arguments")
+        i = 0
+        channels = [decode(x) for x in line.arguments[i].split(b",")]
+        i += 1
+        if len(line.arguments) > 1:
+            keys = [decode(x) for x in line.arguments[i].split(b",")]
+            i += 1
+        else:
+            keys = None
+        assert i == len(line.arguments)
+        return cls(source=source, channels=channels, keys=keys)
 
     def to_line(self, encode: typing.Callable[[str], bytes] = lambda s: s.encode("utf-8")) -> Line:
         source = None
@@ -2833,6 +480,26 @@ class ChannelPart(Message):
     def __repr__(self) -> str:
         return 'ChannelPart(source={}, channels={}, message={})'.format(repr(self.source), repr(self.channels), repr(self.message))
 
+    @classmethod
+    def from_line(cls, line: Line, decode: typing.Callable[[bytes], str] = lambda b: b.decode("utf-8")) -> Message:
+        source = None
+        if line.source is not None:
+            source = decode(line.source)
+        if line.command != b'PART':
+            raise ValueError("incorrect verb")
+        if not (1 <= len(line.arguments) <= 2):
+            raise ValueError("wrong number of arguments")
+        i = 0
+        channels = [decode(x) for x in line.arguments[i].split(b",")]
+        i += 1
+        if len(line.arguments) > 1:
+            message = decode(line.arguments[i])
+            i += 1
+        else:
+            message = None
+        assert i == len(line.arguments)
+        return cls(source=source, channels=channels, message=message)
+
     def to_line(self, encode: typing.Callable[[str], bytes] = lambda s: s.encode("utf-8")) -> Line:
         source = None
         if self.source is not None:
@@ -2859,6 +526,26 @@ class Topic(Message):
     def __repr__(self) -> str:
         return 'Topic(source={}, channel={}, topic={})'.format(repr(self.source), repr(self.channel), repr(self.topic))
 
+    @classmethod
+    def from_line(cls, line: Line, decode: typing.Callable[[bytes], str] = lambda b: b.decode("utf-8")) -> Message:
+        source = None
+        if line.source is not None:
+            source = decode(line.source)
+        if line.command != b'TOPIC':
+            raise ValueError("incorrect verb")
+        if not (1 <= len(line.arguments) <= 2):
+            raise ValueError("wrong number of arguments")
+        i = 0
+        channel = decode(line.arguments[i])
+        i += 1
+        if len(line.arguments) > 1:
+            topic = decode(line.arguments[i])
+            i += 1
+        else:
+            topic = None
+        assert i == len(line.arguments)
+        return cls(source=source, channel=channel, topic=topic)
+
     def to_line(self, encode: typing.Callable[[str], bytes] = lambda s: s.encode("utf-8")) -> Line:
         source = None
         if self.source is not None:
@@ -2884,6 +571,29 @@ class Names(Message):
 
     def __repr__(self) -> str:
         return 'Names(source={}, channels={}, target={})'.format(repr(self.source), repr(self.channels), repr(self.target))
+
+    @classmethod
+    def from_line(cls, line: Line, decode: typing.Callable[[bytes], str] = lambda b: b.decode("utf-8")) -> Message:
+        source = None
+        if line.source is not None:
+            source = decode(line.source)
+        if line.command != b'NAMES':
+            raise ValueError("incorrect verb")
+        if not (len(line.arguments) <= 2):
+            raise ValueError("wrong number of arguments")
+        i = 0
+        if len(line.arguments) > 0:
+            channels = [decode(x) for x in line.arguments[i].split(b",")]
+            i += 1
+        else:
+            channels = None
+        if len(line.arguments) > 1:
+            target = decode(line.arguments[i])
+            i += 1
+        else:
+            target = None
+        assert i == len(line.arguments)
+        return cls(source=source, channels=channels, target=target)
 
     def to_line(self, encode: typing.Callable[[str], bytes] = lambda s: s.encode("utf-8")) -> Line:
         source = None
@@ -2912,6 +622,29 @@ class List(Message):
     def __repr__(self) -> str:
         return 'List(source={}, channels={}, target={})'.format(repr(self.source), repr(self.channels), repr(self.target))
 
+    @classmethod
+    def from_line(cls, line: Line, decode: typing.Callable[[bytes], str] = lambda b: b.decode("utf-8")) -> Message:
+        source = None
+        if line.source is not None:
+            source = decode(line.source)
+        if line.command != b'LIST':
+            raise ValueError("incorrect verb")
+        if not (len(line.arguments) <= 2):
+            raise ValueError("wrong number of arguments")
+        i = 0
+        if len(line.arguments) > 0:
+            channels = [decode(x) for x in line.arguments[i].split(b",")]
+            i += 1
+        else:
+            channels = None
+        if len(line.arguments) > 1:
+            target = decode(line.arguments[i])
+            i += 1
+        else:
+            target = None
+        assert i == len(line.arguments)
+        return cls(source=source, channels=channels, target=target)
+
     def to_line(self, encode: typing.Callable[[str], bytes] = lambda s: s.encode("utf-8")) -> Line:
         source = None
         if self.source is not None:
@@ -2939,6 +672,23 @@ class Invite(Message):
     def __repr__(self) -> str:
         return 'Invite(source={}, nickname={}, channel={})'.format(repr(self.source), repr(self.nickname), repr(self.channel))
 
+    @classmethod
+    def from_line(cls, line: Line, decode: typing.Callable[[bytes], str] = lambda b: b.decode("utf-8")) -> Message:
+        source = None
+        if line.source is not None:
+            source = decode(line.source)
+        if line.command != b'INVITE':
+            raise ValueError("incorrect verb")
+        if not (len(line.arguments) == 2):
+            raise ValueError("wrong number of arguments")
+        i = 0
+        nickname = decode(line.arguments[i])
+        i += 1
+        channel = decode(line.arguments[i])
+        i += 1
+        assert i == len(line.arguments)
+        return cls(source=source, nickname=nickname, channel=channel)
+
     def to_line(self, encode: typing.Callable[[str], bytes] = lambda s: s.encode("utf-8")) -> Line:
         source = None
         if self.source is not None:
@@ -2964,6 +714,28 @@ class Kick(Message):
 
     def __repr__(self) -> str:
         return 'Kick(source={}, channels={}, users={}, comment={})'.format(repr(self.source), repr(self.channels), repr(self.users), repr(self.comment))
+
+    @classmethod
+    def from_line(cls, line: Line, decode: typing.Callable[[bytes], str] = lambda b: b.decode("utf-8")) -> Message:
+        source = None
+        if line.source is not None:
+            source = decode(line.source)
+        if line.command != b'KICK':
+            raise ValueError("incorrect verb")
+        if not (2 <= len(line.arguments) <= 3):
+            raise ValueError("wrong number of arguments")
+        i = 0
+        channels = [decode(x) for x in line.arguments[i].split(b",")]
+        i += 1
+        users = [decode(x) for x in line.arguments[i].split(b",")]
+        i += 1
+        if len(line.arguments) > 2:
+            comment = decode(line.arguments[i])
+            i += 1
+        else:
+            comment = None
+        assert i == len(line.arguments)
+        return cls(source=source, channels=channels, users=users, comment=comment)
 
     def to_line(self, encode: typing.Callable[[str], bytes] = lambda s: s.encode("utf-8")) -> Line:
         source = None
@@ -2992,6 +764,23 @@ class Privmsg(Message):
     def __repr__(self) -> str:
         return 'Privmsg(source={}, target={}, message={})'.format(repr(self.source), repr(self.target), repr(self.message))
 
+    @classmethod
+    def from_line(cls, line: Line, decode: typing.Callable[[bytes], str] = lambda b: b.decode("utf-8")) -> Message:
+        source = None
+        if line.source is not None:
+            source = decode(line.source)
+        if line.command != b'PRIVMSG':
+            raise ValueError("incorrect verb")
+        if not (len(line.arguments) == 2):
+            raise ValueError("wrong number of arguments")
+        i = 0
+        target = decode(line.arguments[i])
+        i += 1
+        message = decode(line.arguments[i])
+        i += 1
+        assert i == len(line.arguments)
+        return cls(source=source, target=target, message=message)
+
     def to_line(self, encode: typing.Callable[[str], bytes] = lambda s: s.encode("utf-8")) -> Line:
         source = None
         if self.source is not None:
@@ -3017,6 +806,23 @@ class Notice(Message):
     def __repr__(self) -> str:
         return 'Notice(source={}, target={}, message={})'.format(repr(self.source), repr(self.target), repr(self.message))
 
+    @classmethod
+    def from_line(cls, line: Line, decode: typing.Callable[[bytes], str] = lambda b: b.decode("utf-8")) -> Message:
+        source = None
+        if line.source is not None:
+            source = decode(line.source)
+        if line.command != b'NOTICE':
+            raise ValueError("incorrect verb")
+        if not (len(line.arguments) == 2):
+            raise ValueError("wrong number of arguments")
+        i = 0
+        target = decode(line.arguments[i])
+        i += 1
+        message = decode(line.arguments[i])
+        i += 1
+        assert i == len(line.arguments)
+        return cls(source=source, target=target, message=message)
+
     def to_line(self, encode: typing.Callable[[str], bytes] = lambda s: s.encode("utf-8")) -> Line:
         source = None
         if self.source is not None:
@@ -3040,6 +846,24 @@ class Motd(Message):
 
     def __repr__(self) -> str:
         return 'Motd(source={}, target={})'.format(repr(self.source), repr(self.target))
+
+    @classmethod
+    def from_line(cls, line: Line, decode: typing.Callable[[bytes], str] = lambda b: b.decode("utf-8")) -> Message:
+        source = None
+        if line.source is not None:
+            source = decode(line.source)
+        if line.command != b'MOTD':
+            raise ValueError("incorrect verb")
+        if not (len(line.arguments) <= 1):
+            raise ValueError("wrong number of arguments")
+        i = 0
+        if len(line.arguments) > 0:
+            target = decode(line.arguments[i])
+            i += 1
+        else:
+            target = None
+        assert i == len(line.arguments)
+        return cls(source=source, target=target)
 
     def to_line(self, encode: typing.Callable[[str], bytes] = lambda s: s.encode("utf-8")) -> Line:
         source = None
@@ -3065,6 +889,29 @@ class Lusers(Message):
 
     def __repr__(self) -> str:
         return 'Lusers(source={}, mask={}, target={})'.format(repr(self.source), repr(self.mask), repr(self.target))
+
+    @classmethod
+    def from_line(cls, line: Line, decode: typing.Callable[[bytes], str] = lambda b: b.decode("utf-8")) -> Message:
+        source = None
+        if line.source is not None:
+            source = decode(line.source)
+        if line.command != b'LUSERS':
+            raise ValueError("incorrect verb")
+        if not (len(line.arguments) <= 2):
+            raise ValueError("wrong number of arguments")
+        i = 0
+        if len(line.arguments) > 0:
+            mask = decode(line.arguments[i])
+            i += 1
+        else:
+            mask = None
+        if len(line.arguments) > 1:
+            target = decode(line.arguments[i])
+            i += 1
+        else:
+            target = None
+        assert i == len(line.arguments)
+        return cls(source=source, mask=mask, target=target)
 
     def to_line(self, encode: typing.Callable[[str], bytes] = lambda s: s.encode("utf-8")) -> Line:
         source = None
@@ -3092,6 +939,24 @@ class Version(Message):
     def __repr__(self) -> str:
         return 'Version(source={}, target={})'.format(repr(self.source), repr(self.target))
 
+    @classmethod
+    def from_line(cls, line: Line, decode: typing.Callable[[bytes], str] = lambda b: b.decode("utf-8")) -> Message:
+        source = None
+        if line.source is not None:
+            source = decode(line.source)
+        if line.command != b'VERSION':
+            raise ValueError("incorrect verb")
+        if not (len(line.arguments) <= 1):
+            raise ValueError("wrong number of arguments")
+        i = 0
+        if len(line.arguments) > 0:
+            target = decode(line.arguments[i])
+            i += 1
+        else:
+            target = None
+        assert i == len(line.arguments)
+        return cls(source=source, target=target)
+
     def to_line(self, encode: typing.Callable[[str], bytes] = lambda s: s.encode("utf-8")) -> Line:
         source = None
         if self.source is not None:
@@ -3116,6 +981,29 @@ class Stats(Message):
 
     def __repr__(self) -> str:
         return 'Stats(source={}, query={}, target={})'.format(repr(self.source), repr(self.query), repr(self.target))
+
+    @classmethod
+    def from_line(cls, line: Line, decode: typing.Callable[[bytes], str] = lambda b: b.decode("utf-8")) -> Message:
+        source = None
+        if line.source is not None:
+            source = decode(line.source)
+        if line.command != b'STATS':
+            raise ValueError("incorrect verb")
+        if not (len(line.arguments) <= 2):
+            raise ValueError("wrong number of arguments")
+        i = 0
+        if len(line.arguments) > 0:
+            query = decode(line.arguments[i])
+            i += 1
+        else:
+            query = None
+        if len(line.arguments) > 1:
+            target = decode(line.arguments[i])
+            i += 1
+        else:
+            target = None
+        assert i == len(line.arguments)
+        return cls(source=source, query=query, target=target)
 
     def to_line(self, encode: typing.Callable[[str], bytes] = lambda s: s.encode("utf-8")) -> Line:
         source = None
@@ -3144,6 +1032,29 @@ class Links(Message):
     def __repr__(self) -> str:
         return 'Links(source={}, server={}, mask={})'.format(repr(self.source), repr(self.server), repr(self.mask))
 
+    @classmethod
+    def from_line(cls, line: Line, decode: typing.Callable[[bytes], str] = lambda b: b.decode("utf-8")) -> Message:
+        source = None
+        if line.source is not None:
+            source = decode(line.source)
+        if line.command != b'LINKS':
+            raise ValueError("incorrect verb")
+        if not (len(line.arguments) <= 2):
+            raise ValueError("wrong number of arguments")
+        i = len(line.arguments) - 1
+        if len(line.arguments) > 0:
+            server = decode(line.arguments[i])
+            i -= 1
+        else:
+            server = None
+        if len(line.arguments) > 1:
+            mask = decode(line.arguments[i])
+            i -= 1
+        else:
+            mask = None
+        assert i == -1
+        return cls(source=source, server=server, mask=mask)
+
     def to_line(self, encode: typing.Callable[[str], bytes] = lambda s: s.encode("utf-8")) -> Line:
         source = None
         if self.source is not None:
@@ -3169,6 +1080,24 @@ class Time(Message):
 
     def __repr__(self) -> str:
         return 'Time(source={}, target={})'.format(repr(self.source), repr(self.target))
+
+    @classmethod
+    def from_line(cls, line: Line, decode: typing.Callable[[bytes], str] = lambda b: b.decode("utf-8")) -> Message:
+        source = None
+        if line.source is not None:
+            source = decode(line.source)
+        if line.command != b'TIME':
+            raise ValueError("incorrect verb")
+        if not (len(line.arguments) <= 1):
+            raise ValueError("wrong number of arguments")
+        i = 0
+        if len(line.arguments) > 0:
+            target = decode(line.arguments[i])
+            i += 1
+        else:
+            target = None
+        assert i == len(line.arguments)
+        return cls(source=source, target=target)
 
     def to_line(self, encode: typing.Callable[[str], bytes] = lambda s: s.encode("utf-8")) -> Line:
         source = None
@@ -3196,6 +1125,28 @@ class ServerConnect(Message):
     def __repr__(self) -> str:
         return 'ServerConnect(source={}, target={}, port={}, remote={})'.format(repr(self.source), repr(self.target), repr(self.port), repr(self.remote))
 
+    @classmethod
+    def from_line(cls, line: Line, decode: typing.Callable[[bytes], str] = lambda b: b.decode("utf-8")) -> Message:
+        source = None
+        if line.source is not None:
+            source = decode(line.source)
+        if line.command != b'CONNECT':
+            raise ValueError("incorrect verb")
+        if not (2 <= len(line.arguments) <= 3):
+            raise ValueError("wrong number of arguments")
+        i = 0
+        target = decode(line.arguments[i])
+        i += 1
+        port = int(line.arguments[i])
+        i += 1
+        if len(line.arguments) > 2:
+            remote = decode(line.arguments[i])
+            i += 1
+        else:
+            remote = None
+        assert i == len(line.arguments)
+        return cls(source=source, target=target, port=port, remote=remote)
+
     def to_line(self, encode: typing.Callable[[str], bytes] = lambda s: s.encode("utf-8")) -> Line:
         source = None
         if self.source is not None:
@@ -3222,6 +1173,24 @@ class Trace(Message):
     def __repr__(self) -> str:
         return 'Trace(source={}, target={})'.format(repr(self.source), repr(self.target))
 
+    @classmethod
+    def from_line(cls, line: Line, decode: typing.Callable[[bytes], str] = lambda b: b.decode("utf-8")) -> Message:
+        source = None
+        if line.source is not None:
+            source = decode(line.source)
+        if line.command != b'TRACE':
+            raise ValueError("incorrect verb")
+        if not (len(line.arguments) <= 1):
+            raise ValueError("wrong number of arguments")
+        i = 0
+        if len(line.arguments) > 0:
+            target = decode(line.arguments[i])
+            i += 1
+        else:
+            target = None
+        assert i == len(line.arguments)
+        return cls(source=source, target=target)
+
     def to_line(self, encode: typing.Callable[[str], bytes] = lambda s: s.encode("utf-8")) -> Line:
         source = None
         if self.source is not None:
@@ -3245,6 +1214,24 @@ class Admin(Message):
 
     def __repr__(self) -> str:
         return 'Admin(source={}, target={})'.format(repr(self.source), repr(self.target))
+
+    @classmethod
+    def from_line(cls, line: Line, decode: typing.Callable[[bytes], str] = lambda b: b.decode("utf-8")) -> Message:
+        source = None
+        if line.source is not None:
+            source = decode(line.source)
+        if line.command != b'ADMIN':
+            raise ValueError("incorrect verb")
+        if not (len(line.arguments) <= 1):
+            raise ValueError("wrong number of arguments")
+        i = 0
+        if len(line.arguments) > 0:
+            target = decode(line.arguments[i])
+            i += 1
+        else:
+            target = None
+        assert i == len(line.arguments)
+        return cls(source=source, target=target)
 
     def to_line(self, encode: typing.Callable[[str], bytes] = lambda s: s.encode("utf-8")) -> Line:
         source = None
@@ -3270,6 +1257,24 @@ class Info(Message):
     def __repr__(self) -> str:
         return 'Info(source={}, target={})'.format(repr(self.source), repr(self.target))
 
+    @classmethod
+    def from_line(cls, line: Line, decode: typing.Callable[[bytes], str] = lambda b: b.decode("utf-8")) -> Message:
+        source = None
+        if line.source is not None:
+            source = decode(line.source)
+        if line.command != b'INFO':
+            raise ValueError("incorrect verb")
+        if not (len(line.arguments) <= 1):
+            raise ValueError("wrong number of arguments")
+        i = 0
+        if len(line.arguments) > 0:
+            target = decode(line.arguments[i])
+            i += 1
+        else:
+            target = None
+        assert i == len(line.arguments)
+        return cls(source=source, target=target)
+
     def to_line(self, encode: typing.Callable[[str], bytes] = lambda s: s.encode("utf-8")) -> Line:
         source = None
         if self.source is not None:
@@ -3294,6 +1299,29 @@ class ServList(Message):
 
     def __repr__(self) -> str:
         return 'ServList(source={}, mask={}, type={})'.format(repr(self.source), repr(self.mask), repr(self.type))
+
+    @classmethod
+    def from_line(cls, line: Line, decode: typing.Callable[[bytes], str] = lambda b: b.decode("utf-8")) -> Message:
+        source = None
+        if line.source is not None:
+            source = decode(line.source)
+        if line.command != b'SERVLIST':
+            raise ValueError("incorrect verb")
+        if not (len(line.arguments) <= 2):
+            raise ValueError("wrong number of arguments")
+        i = 0
+        if len(line.arguments) > 0:
+            mask = decode(line.arguments[i])
+            i += 1
+        else:
+            mask = None
+        if len(line.arguments) > 1:
+            type = decode(line.arguments[i])
+            i += 1
+        else:
+            type = None
+        assert i == len(line.arguments)
+        return cls(source=source, mask=mask, type=type)
 
     def to_line(self, encode: typing.Callable[[str], bytes] = lambda s: s.encode("utf-8")) -> Line:
         source = None
@@ -3322,6 +1350,23 @@ class SQuery(Message):
     def __repr__(self) -> str:
         return 'SQuery(source={}, servicename={}, text={})'.format(repr(self.source), repr(self.servicename), repr(self.text))
 
+    @classmethod
+    def from_line(cls, line: Line, decode: typing.Callable[[bytes], str] = lambda b: b.decode("utf-8")) -> Message:
+        source = None
+        if line.source is not None:
+            source = decode(line.source)
+        if line.command != b'SQUERY':
+            raise ValueError("incorrect verb")
+        if not (len(line.arguments) == 2):
+            raise ValueError("wrong number of arguments")
+        i = 0
+        servicename = decode(line.arguments[i])
+        i += 1
+        text = decode(line.arguments[i])
+        i += 1
+        assert i == len(line.arguments)
+        return cls(source=source, servicename=servicename, text=text)
+
     def to_line(self, encode: typing.Callable[[str], bytes] = lambda s: s.encode("utf-8")) -> Line:
         source = None
         if self.source is not None:
@@ -3346,6 +1391,29 @@ class Who(Message):
 
     def __repr__(self) -> str:
         return 'Who(source={}, mask={}, operators={})'.format(repr(self.source), repr(self.mask), repr(self.operators))
+
+    @classmethod
+    def from_line(cls, line: Line, decode: typing.Callable[[bytes], str] = lambda b: b.decode("utf-8")) -> Message:
+        source = None
+        if line.source is not None:
+            source = decode(line.source)
+        if line.command != b'WHO':
+            raise ValueError("incorrect verb")
+        if not (len(line.arguments) <= 2):
+            raise ValueError("wrong number of arguments")
+        i = 0
+        if len(line.arguments) > 0:
+            mask = decode(line.arguments[i])
+            i += 1
+        else:
+            mask = None
+        if len(line.arguments) > 1:
+            operators = True
+            i += 1
+        else:
+            operators = False
+        assert i == len(line.arguments)
+        return cls(source=source, mask=mask, operators=operators)
 
     def to_line(self, encode: typing.Callable[[str], bytes] = lambda s: s.encode("utf-8")) -> Line:
         source = None
@@ -3374,6 +1442,26 @@ class WhoIs(Message):
     def __repr__(self) -> str:
         return 'WhoIs(source={}, target={}, masks={})'.format(repr(self.source), repr(self.target), repr(self.masks))
 
+    @classmethod
+    def from_line(cls, line: Line, decode: typing.Callable[[bytes], str] = lambda b: b.decode("utf-8")) -> Message:
+        source = None
+        if line.source is not None:
+            source = decode(line.source)
+        if line.command != b'WHOIS':
+            raise ValueError("incorrect verb")
+        if not (1 <= len(line.arguments) <= 2):
+            raise ValueError("wrong number of arguments")
+        i = 0
+        if len(line.arguments) > 1:
+            target = decode(line.arguments[i])
+            i += 1
+        else:
+            target = None
+        masks = [decode(x) for x in line.arguments[i].split(b",")]
+        i += 1
+        assert i == len(line.arguments)
+        return cls(source=source, target=target, masks=masks)
+
     def to_line(self, encode: typing.Callable[[str], bytes] = lambda s: s.encode("utf-8")) -> Line:
         source = None
         if self.source is not None:
@@ -3400,6 +1488,31 @@ class WhoWas(Message):
 
     def __repr__(self) -> str:
         return 'WhoWas(source={}, nicknames={}, count={}, target={})'.format(repr(self.source), repr(self.nicknames), repr(self.count), repr(self.target))
+
+    @classmethod
+    def from_line(cls, line: Line, decode: typing.Callable[[bytes], str] = lambda b: b.decode("utf-8")) -> Message:
+        source = None
+        if line.source is not None:
+            source = decode(line.source)
+        if line.command != b'WHOWAS':
+            raise ValueError("incorrect verb")
+        if not (1 <= len(line.arguments) <= 3):
+            raise ValueError("wrong number of arguments")
+        i = 0
+        nicknames = [decode(x) for x in line.arguments[i].split(b",")]
+        i += 1
+        if len(line.arguments) > 1:
+            count = int(line.arguments[i])
+            i += 1
+        else:
+            count = None
+        if len(line.arguments) > 2:
+            target = decode(line.arguments[i])
+            i += 1
+        else:
+            target = None
+        assert i == len(line.arguments)
+        return cls(source=source, nicknames=nicknames, count=count, target=target)
 
     def to_line(self, encode: typing.Callable[[str], bytes] = lambda s: s.encode("utf-8")) -> Line:
         source = None
@@ -3429,6 +1542,23 @@ class Kill(Message):
     def __repr__(self) -> str:
         return 'Kill(source={}, nickname={}, comment={})'.format(repr(self.source), repr(self.nickname), repr(self.comment))
 
+    @classmethod
+    def from_line(cls, line: Line, decode: typing.Callable[[bytes], str] = lambda b: b.decode("utf-8")) -> Message:
+        source = None
+        if line.source is not None:
+            source = decode(line.source)
+        if line.command != b'KILL':
+            raise ValueError("incorrect verb")
+        if not (len(line.arguments) == 2):
+            raise ValueError("wrong number of arguments")
+        i = 0
+        nickname = decode(line.arguments[i])
+        i += 1
+        comment = decode(line.arguments[i])
+        i += 1
+        assert i == len(line.arguments)
+        return cls(source=source, nickname=nickname, comment=comment)
+
     def to_line(self, encode: typing.Callable[[str], bytes] = lambda s: s.encode("utf-8")) -> Line:
         source = None
         if self.source is not None:
@@ -3453,6 +1583,26 @@ class Ping(Message):
 
     def __repr__(self) -> str:
         return 'Ping(source={}, server1={}, server2={})'.format(repr(self.source), repr(self.server1), repr(self.server2))
+
+    @classmethod
+    def from_line(cls, line: Line, decode: typing.Callable[[bytes], str] = lambda b: b.decode("utf-8")) -> Message:
+        source = None
+        if line.source is not None:
+            source = decode(line.source)
+        if line.command != b'PING':
+            raise ValueError("incorrect verb")
+        if not (1 <= len(line.arguments) <= 2):
+            raise ValueError("wrong number of arguments")
+        i = 0
+        server1 = decode(line.arguments[i])
+        i += 1
+        if len(line.arguments) > 1:
+            server2 = decode(line.arguments[i])
+            i += 1
+        else:
+            server2 = None
+        assert i == len(line.arguments)
+        return cls(source=source, server1=server1, server2=server2)
 
     def to_line(self, encode: typing.Callable[[str], bytes] = lambda s: s.encode("utf-8")) -> Line:
         source = None
@@ -3480,6 +1630,26 @@ class Pong(Message):
     def __repr__(self) -> str:
         return 'Pong(source={}, server={}, server2={})'.format(repr(self.source), repr(self.server), repr(self.server2))
 
+    @classmethod
+    def from_line(cls, line: Line, decode: typing.Callable[[bytes], str] = lambda b: b.decode("utf-8")) -> Message:
+        source = None
+        if line.source is not None:
+            source = decode(line.source)
+        if line.command != b'PONG':
+            raise ValueError("incorrect verb")
+        if not (1 <= len(line.arguments) <= 2):
+            raise ValueError("wrong number of arguments")
+        i = 0
+        server = decode(line.arguments[i])
+        i += 1
+        if len(line.arguments) > 1:
+            server2 = decode(line.arguments[i])
+            i += 1
+        else:
+            server2 = None
+        assert i == len(line.arguments)
+        return cls(source=source, server=server, server2=server2)
+
     def to_line(self, encode: typing.Callable[[str], bytes] = lambda s: s.encode("utf-8")) -> Line:
         source = None
         if self.source is not None:
@@ -3505,6 +1675,21 @@ class Error(Message):
     def __repr__(self) -> str:
         return 'Error(source={}, message={})'.format(repr(self.source), repr(self.message))
 
+    @classmethod
+    def from_line(cls, line: Line, decode: typing.Callable[[bytes], str] = lambda b: b.decode("utf-8")) -> Message:
+        source = None
+        if line.source is not None:
+            source = decode(line.source)
+        if line.command != b'ERROR':
+            raise ValueError("incorrect verb")
+        if not (len(line.arguments) == 1):
+            raise ValueError("wrong number of arguments")
+        i = 0
+        message = decode(line.arguments[i])
+        i += 1
+        assert i == len(line.arguments)
+        return cls(source=source, message=message)
+
     def to_line(self, encode: typing.Callable[[str], bytes] = lambda s: s.encode("utf-8")) -> Line:
         source = None
         if self.source is not None:
@@ -3528,6 +1713,24 @@ class Away(Message):
     def __repr__(self) -> str:
         return 'Away(source={}, text={})'.format(repr(self.source), repr(self.text))
 
+    @classmethod
+    def from_line(cls, line: Line, decode: typing.Callable[[bytes], str] = lambda b: b.decode("utf-8")) -> Message:
+        source = None
+        if line.source is not None:
+            source = decode(line.source)
+        if line.command != b'AWAY':
+            raise ValueError("incorrect verb")
+        if not (len(line.arguments) <= 1):
+            raise ValueError("wrong number of arguments")
+        i = 0
+        if len(line.arguments) > 0:
+            text = decode(line.arguments[i])
+            i += 1
+        else:
+            text = None
+        assert i == len(line.arguments)
+        return cls(source=source, text=text)
+
     def to_line(self, encode: typing.Callable[[str], bytes] = lambda s: s.encode("utf-8")) -> Line:
         source = None
         if self.source is not None:
@@ -3549,6 +1752,17 @@ class Rehash(Message):
     def __repr__(self) -> str:
         return 'Rehash(source={})'.format(repr(self.source))
 
+    @classmethod
+    def from_line(cls, line: Line, decode: typing.Callable[[bytes], str] = lambda b: b.decode("utf-8")) -> Message:
+        source = None
+        if line.source is not None:
+            source = decode(line.source)
+        if line.command != b'REHASH':
+            raise ValueError("incorrect verb")
+        if not (len(line.arguments) == 0):
+            raise ValueError("wrong number of arguments")
+        return cls(source=source)
+
     def to_line(self, encode: typing.Callable[[str], bytes] = lambda s: s.encode("utf-8")) -> Line:
         source = None
         if self.source is not None:
@@ -3567,6 +1781,17 @@ class Die(Message):
     def __repr__(self) -> str:
         return 'Die(source={})'.format(repr(self.source))
 
+    @classmethod
+    def from_line(cls, line: Line, decode: typing.Callable[[bytes], str] = lambda b: b.decode("utf-8")) -> Message:
+        source = None
+        if line.source is not None:
+            source = decode(line.source)
+        if line.command != b'DIE':
+            raise ValueError("incorrect verb")
+        if not (len(line.arguments) == 0):
+            raise ValueError("wrong number of arguments")
+        return cls(source=source)
+
     def to_line(self, encode: typing.Callable[[str], bytes] = lambda s: s.encode("utf-8")) -> Line:
         source = None
         if self.source is not None:
@@ -3584,6 +1809,17 @@ class Restart(Message):
 
     def __repr__(self) -> str:
         return 'Restart(source={})'.format(repr(self.source))
+
+    @classmethod
+    def from_line(cls, line: Line, decode: typing.Callable[[bytes], str] = lambda b: b.decode("utf-8")) -> Message:
+        source = None
+        if line.source is not None:
+            source = decode(line.source)
+        if line.command != b'RESTART':
+            raise ValueError("incorrect verb")
+        if not (len(line.arguments) == 0):
+            raise ValueError("wrong number of arguments")
+        return cls(source=source)
 
     def to_line(self, encode: typing.Callable[[str], bytes] = lambda s: s.encode("utf-8")) -> Line:
         source = None
@@ -3607,6 +1843,31 @@ class Summon(Message):
 
     def __repr__(self) -> str:
         return 'Summon(source={}, user={}, target={}, channel={})'.format(repr(self.source), repr(self.user), repr(self.target), repr(self.channel))
+
+    @classmethod
+    def from_line(cls, line: Line, decode: typing.Callable[[bytes], str] = lambda b: b.decode("utf-8")) -> Message:
+        source = None
+        if line.source is not None:
+            source = decode(line.source)
+        if line.command != b'SUMMON':
+            raise ValueError("incorrect verb")
+        if not (1 <= len(line.arguments) <= 3):
+            raise ValueError("wrong number of arguments")
+        i = 0
+        user = decode(line.arguments[i])
+        i += 1
+        if len(line.arguments) > 1:
+            target = decode(line.arguments[i])
+            i += 1
+        else:
+            target = None
+        if len(line.arguments) > 2:
+            channel = decode(line.arguments[i])
+            i += 1
+        else:
+            channel = None
+        assert i == len(line.arguments)
+        return cls(source=source, user=user, target=target, channel=channel)
 
     def to_line(self, encode: typing.Callable[[str], bytes] = lambda s: s.encode("utf-8")) -> Line:
         source = None
@@ -3635,6 +1896,24 @@ class Users(Message):
     def __repr__(self) -> str:
         return 'Users(source={}, target={})'.format(repr(self.source), repr(self.target))
 
+    @classmethod
+    def from_line(cls, line: Line, decode: typing.Callable[[bytes], str] = lambda b: b.decode("utf-8")) -> Message:
+        source = None
+        if line.source is not None:
+            source = decode(line.source)
+        if line.command != b'USERS':
+            raise ValueError("incorrect verb")
+        if not (len(line.arguments) <= 1):
+            raise ValueError("wrong number of arguments")
+        i = 0
+        if len(line.arguments) > 0:
+            target = decode(line.arguments[i])
+            i += 1
+        else:
+            target = None
+        assert i == len(line.arguments)
+        return cls(source=source, target=target)
+
     def to_line(self, encode: typing.Callable[[str], bytes] = lambda s: s.encode("utf-8")) -> Line:
         source = None
         if self.source is not None:
@@ -3658,6 +1937,21 @@ class WallOps(Message):
 
     def __repr__(self) -> str:
         return 'WallOps(source={}, message={})'.format(repr(self.source), repr(self.message))
+
+    @classmethod
+    def from_line(cls, line: Line, decode: typing.Callable[[bytes], str] = lambda b: b.decode("utf-8")) -> Message:
+        source = None
+        if line.source is not None:
+            source = decode(line.source)
+        if line.command != b'WALLOPS':
+            raise ValueError("incorrect verb")
+        if not (len(line.arguments) == 1):
+            raise ValueError("wrong number of arguments")
+        i = 0
+        message = decode(line.arguments[i])
+        i += 1
+        assert i == len(line.arguments)
+        return cls(source=source, message=message)
 
     def to_line(self, encode: typing.Callable[[str], bytes] = lambda s: s.encode("utf-8")) -> Line:
         source = None
@@ -3684,6 +1978,21 @@ class UserHost(Message):
     def __repr__(self) -> str:
         return 'UserHost(source={}, nickname={})'.format(repr(self.source), repr(self.nickname))
 
+    @classmethod
+    def from_line(cls, line: Line, decode: typing.Callable[[bytes], str] = lambda b: b.decode("utf-8")) -> Message:
+        source = None
+        if line.source is not None:
+            source = decode(line.source)
+        if line.command != b'USERHOST':
+            raise ValueError("incorrect verb")
+        if not (len(line.arguments) == 1):
+            raise ValueError("wrong number of arguments")
+        i = 0
+        nickname = decode(line.arguments[i])
+        i += 1
+        assert i == len(line.arguments)
+        return cls(source=source, nickname=nickname)
+
     def to_line(self, encode: typing.Callable[[str], bytes] = lambda s: s.encode("utf-8")) -> Line:
         source = None
         if self.source is not None:
@@ -3709,6 +2018,21 @@ class IsOn(Message):
     def __repr__(self) -> str:
         return 'IsOn(source={}, nickname={})'.format(repr(self.source), repr(self.nickname))
 
+    @classmethod
+    def from_line(cls, line: Line, decode: typing.Callable[[bytes], str] = lambda b: b.decode("utf-8")) -> Message:
+        source = None
+        if line.source is not None:
+            source = decode(line.source)
+        if line.command != b'ISON':
+            raise ValueError("incorrect verb")
+        if not (len(line.arguments) == 1):
+            raise ValueError("wrong number of arguments")
+        i = 0
+        nickname = decode(line.arguments[i])
+        i += 1
+        assert i == len(line.arguments)
+        return cls(source=source, nickname=nickname)
+
     def to_line(self, encode: typing.Callable[[str], bytes] = lambda s: s.encode("utf-8")) -> Line:
         source = None
         if self.source is not None:
@@ -3732,6 +2056,23 @@ class Welcome(Message):
 
     def __repr__(self) -> str:
         return 'Welcome(source={}, target={}, message={})'.format(repr(self.source), repr(self.target), repr(self.message))
+
+    @classmethod
+    def from_line(cls, line: Line, decode: typing.Callable[[bytes], str] = lambda b: b.decode("utf-8")) -> Message:
+        source = None
+        if line.source is not None:
+            source = decode(line.source)
+        if line.command != 1:
+            raise ValueError("incorrect verb")
+        if not (len(line.arguments) == 2):
+            raise ValueError("wrong number of arguments")
+        i = 0
+        target = decode(line.arguments[i])
+        i += 1
+        message = decode(line.arguments[i])
+        i += 1
+        assert i == len(line.arguments)
+        return cls(source=source, target=target, message=message)
 
     def to_line(self, encode: typing.Callable[[str], bytes] = lambda s: s.encode("utf-8")) -> Line:
         source = None
@@ -3758,6 +2099,23 @@ class YourHost(Message):
     def __repr__(self) -> str:
         return 'YourHost(source={}, target={}, message={})'.format(repr(self.source), repr(self.target), repr(self.message))
 
+    @classmethod
+    def from_line(cls, line: Line, decode: typing.Callable[[bytes], str] = lambda b: b.decode("utf-8")) -> Message:
+        source = None
+        if line.source is not None:
+            source = decode(line.source)
+        if line.command != 2:
+            raise ValueError("incorrect verb")
+        if not (len(line.arguments) == 2):
+            raise ValueError("wrong number of arguments")
+        i = 0
+        target = decode(line.arguments[i])
+        i += 1
+        message = decode(line.arguments[i])
+        i += 1
+        assert i == len(line.arguments)
+        return cls(source=source, target=target, message=message)
+
     def to_line(self, encode: typing.Callable[[str], bytes] = lambda s: s.encode("utf-8")) -> Line:
         source = None
         if self.source is not None:
@@ -3782,6 +2140,23 @@ class Created(Message):
 
     def __repr__(self) -> str:
         return 'Created(source={}, target={}, message={})'.format(repr(self.source), repr(self.target), repr(self.message))
+
+    @classmethod
+    def from_line(cls, line: Line, decode: typing.Callable[[bytes], str] = lambda b: b.decode("utf-8")) -> Message:
+        source = None
+        if line.source is not None:
+            source = decode(line.source)
+        if line.command != 3:
+            raise ValueError("incorrect verb")
+        if not (len(line.arguments) == 2):
+            raise ValueError("wrong number of arguments")
+        i = 0
+        target = decode(line.arguments[i])
+        i += 1
+        message = decode(line.arguments[i])
+        i += 1
+        assert i == len(line.arguments)
+        return cls(source=source, target=target, message=message)
 
     def to_line(self, encode: typing.Callable[[str], bytes] = lambda s: s.encode("utf-8")) -> Line:
         source = None
@@ -3808,6 +2183,23 @@ class MyInfo(Message):
     def __repr__(self) -> str:
         return 'MyInfo(source={}, target={}, message={})'.format(repr(self.source), repr(self.target), repr(self.message))
 
+    @classmethod
+    def from_line(cls, line: Line, decode: typing.Callable[[bytes], str] = lambda b: b.decode("utf-8")) -> Message:
+        source = None
+        if line.source is not None:
+            source = decode(line.source)
+        if line.command != 4:
+            raise ValueError("incorrect verb")
+        if not (len(line.arguments) == 2):
+            raise ValueError("wrong number of arguments")
+        i = 0
+        target = decode(line.arguments[i])
+        i += 1
+        message = decode(line.arguments[i])
+        i += 1
+        assert i == len(line.arguments)
+        return cls(source=source, target=target, message=message)
+
     def to_line(self, encode: typing.Callable[[str], bytes] = lambda s: s.encode("utf-8")) -> Line:
         source = None
         if self.source is not None:
@@ -3832,6 +2224,23 @@ class Bounce(Message):
 
     def __repr__(self) -> str:
         return 'Bounce(source={}, target={}, message={})'.format(repr(self.source), repr(self.target), repr(self.message))
+
+    @classmethod
+    def from_line(cls, line: Line, decode: typing.Callable[[bytes], str] = lambda b: b.decode("utf-8")) -> Message:
+        source = None
+        if line.source is not None:
+            source = decode(line.source)
+        if line.command != 5:
+            raise ValueError("incorrect verb")
+        if not (len(line.arguments) == 2):
+            raise ValueError("wrong number of arguments")
+        i = 0
+        target = decode(line.arguments[i])
+        i += 1
+        message = decode(line.arguments[i])
+        i += 1
+        assert i == len(line.arguments)
+        return cls(source=source, target=target, message=message)
 
     def to_line(self, encode: typing.Callable[[str], bytes] = lambda s: s.encode("utf-8")) -> Line:
         source = None
@@ -3864,6 +2273,37 @@ class TraceLinkReply(Message):
     def __repr__(self) -> str:
         return 'TraceLinkReply(source={}, target={}, version={}, destination={}, next={}, protocol_version={}, link_uptime={}, back_send_q={}, up_send_q={})'.format(repr(self.source), repr(self.target), repr(self.version), repr(self.destination), repr(self.next), repr(self.protocol_version), repr(self.link_uptime), repr(self.back_send_q), repr(self.up_send_q))
 
+    @classmethod
+    def from_line(cls, line: Line, decode: typing.Callable[[bytes], str] = lambda b: b.decode("utf-8")) -> Message:
+        source = None
+        if line.source is not None:
+            source = decode(line.source)
+        if line.command != 200:
+            raise ValueError("incorrect verb")
+        if not (len(line.arguments) == 9):
+            raise ValueError("wrong number of arguments")
+        i = 0
+        target = decode(line.arguments[i])
+        i += 1
+        # line.arguments[i]: 'Link'
+        i += 1
+        version = decode(line.arguments[i])
+        i += 1
+        destination = decode(line.arguments[i])
+        i += 1
+        next = decode(line.arguments[i])
+        i += 1
+        protocol_version = decode(line.arguments[i])
+        i += 1
+        link_uptime = decode(line.arguments[i])
+        i += 1
+        back_send_q = decode(line.arguments[i])
+        i += 1
+        up_send_q = decode(line.arguments[i])
+        i += 1
+        assert i == len(line.arguments)
+        return cls(source=source, target=target, version=version, destination=destination, next=next, protocol_version=protocol_version, link_uptime=link_uptime, back_send_q=back_send_q, up_send_q=up_send_q)
+
     def to_line(self, encode: typing.Callable[[str], bytes] = lambda s: s.encode("utf-8")) -> Line:
         source = None
         if self.source is not None:
@@ -3886,16 +2326,37 @@ class TraceConnecting(Message):
     ``201 <target> Try. <class> <server>``
     """
 
-    __slots__ = ['target', 'cls', 'server']
+    __slots__ = ['target', 'klass', 'server']
 
-    def __init__(self, source: str, target: str, cls: str, server: str) -> None:
+    def __init__(self, source: str, target: str, klass: str, server: str) -> None:
         self.source = source
         self.target = target
-        self.cls = cls
+        self.klass = klass
         self.server = server
 
     def __repr__(self) -> str:
-        return 'TraceConnecting(source={}, target={}, cls={}, server={})'.format(repr(self.source), repr(self.target), repr(self.cls), repr(self.server))
+        return 'TraceConnecting(source={}, target={}, klass={}, server={})'.format(repr(self.source), repr(self.target), repr(self.klass), repr(self.server))
+
+    @classmethod
+    def from_line(cls, line: Line, decode: typing.Callable[[bytes], str] = lambda b: b.decode("utf-8")) -> Message:
+        source = None
+        if line.source is not None:
+            source = decode(line.source)
+        if line.command != 201:
+            raise ValueError("incorrect verb")
+        if not (len(line.arguments) == 4):
+            raise ValueError("wrong number of arguments")
+        i = 0
+        target = decode(line.arguments[i])
+        i += 1
+        # line.arguments[i]: 'Try.'
+        i += 1
+        klass = decode(line.arguments[i])
+        i += 1
+        server = decode(line.arguments[i])
+        i += 1
+        assert i == len(line.arguments)
+        return cls(source=source, target=target, klass=klass, server=server)
 
     def to_line(self, encode: typing.Callable[[str], bytes] = lambda s: s.encode("utf-8")) -> Line:
         source = None
@@ -3904,7 +2365,7 @@ class TraceConnecting(Message):
         arguments = []
         arguments.append(encode(self.target))
         arguments.append(b'Try.')
-        arguments.append(encode(self.cls))
+        arguments.append(encode(self.klass))
         arguments.append(encode(self.server))
         return Line(source, b"201", arguments)
 
@@ -3914,16 +2375,37 @@ class TraceHandshake(Message):
     ``202 <target> H.S. <class> <server>``
     """
 
-    __slots__ = ['target', 'cls', 'server']
+    __slots__ = ['target', 'klass', 'server']
 
-    def __init__(self, source: str, target: str, cls: str, server: str) -> None:
+    def __init__(self, source: str, target: str, klass: str, server: str) -> None:
         self.source = source
         self.target = target
-        self.cls = cls
+        self.klass = klass
         self.server = server
 
     def __repr__(self) -> str:
-        return 'TraceHandshake(source={}, target={}, cls={}, server={})'.format(repr(self.source), repr(self.target), repr(self.cls), repr(self.server))
+        return 'TraceHandshake(source={}, target={}, klass={}, server={})'.format(repr(self.source), repr(self.target), repr(self.klass), repr(self.server))
+
+    @classmethod
+    def from_line(cls, line: Line, decode: typing.Callable[[bytes], str] = lambda b: b.decode("utf-8")) -> Message:
+        source = None
+        if line.source is not None:
+            source = decode(line.source)
+        if line.command != 202:
+            raise ValueError("incorrect verb")
+        if not (len(line.arguments) == 4):
+            raise ValueError("wrong number of arguments")
+        i = 0
+        target = decode(line.arguments[i])
+        i += 1
+        # line.arguments[i]: 'H.S.'
+        i += 1
+        klass = decode(line.arguments[i])
+        i += 1
+        server = decode(line.arguments[i])
+        i += 1
+        assert i == len(line.arguments)
+        return cls(source=source, target=target, klass=klass, server=server)
 
     def to_line(self, encode: typing.Callable[[str], bytes] = lambda s: s.encode("utf-8")) -> Line:
         source = None
@@ -3932,7 +2414,7 @@ class TraceHandshake(Message):
         arguments = []
         arguments.append(encode(self.target))
         arguments.append(b'H.S.')
-        arguments.append(encode(self.cls))
+        arguments.append(encode(self.klass))
         arguments.append(encode(self.server))
         return Line(source, b"202", arguments)
 
@@ -3942,16 +2424,40 @@ class TraceUnknown(Message):
     ``203 <target> ???? <class> [ip]``
     """
 
-    __slots__ = ['target', 'cls', 'ip']
+    __slots__ = ['target', 'klass', 'ip']
 
-    def __init__(self, source: str, target: str, cls: str, ip: str = None) -> None:
+    def __init__(self, source: str, target: str, klass: str, ip: str = None) -> None:
         self.source = source
         self.target = target
-        self.cls = cls
+        self.klass = klass
         self.ip = ip
 
     def __repr__(self) -> str:
-        return 'TraceUnknown(source={}, target={}, cls={}, ip={})'.format(repr(self.source), repr(self.target), repr(self.cls), repr(self.ip))
+        return 'TraceUnknown(source={}, target={}, klass={}, ip={})'.format(repr(self.source), repr(self.target), repr(self.klass), repr(self.ip))
+
+    @classmethod
+    def from_line(cls, line: Line, decode: typing.Callable[[bytes], str] = lambda b: b.decode("utf-8")) -> Message:
+        source = None
+        if line.source is not None:
+            source = decode(line.source)
+        if line.command != 203:
+            raise ValueError("incorrect verb")
+        if not (3 <= len(line.arguments) <= 4):
+            raise ValueError("wrong number of arguments")
+        i = 0
+        target = decode(line.arguments[i])
+        i += 1
+        # line.arguments[i]: '????'
+        i += 1
+        klass = decode(line.arguments[i])
+        i += 1
+        if len(line.arguments) > 3:
+            ip = decode(line.arguments[i])
+            i += 1
+        else:
+            ip = None
+        assert i == len(line.arguments)
+        return cls(source=source, target=target, klass=klass, ip=ip)
 
     def to_line(self, encode: typing.Callable[[str], bytes] = lambda s: s.encode("utf-8")) -> Line:
         source = None
@@ -3960,7 +2466,7 @@ class TraceUnknown(Message):
         arguments = []
         arguments.append(encode(self.target))
         arguments.append(b'????')
-        arguments.append(encode(self.cls))
+        arguments.append(encode(self.klass))
         if self.ip is not None:
             arguments.append(encode(self.ip))
         return Line(source, b"203", arguments)
@@ -3971,16 +2477,37 @@ class TraceOperator(Message):
     ``204 <target> Oper <class> <nickname>``
     """
 
-    __slots__ = ['target', 'cls', 'nickname']
+    __slots__ = ['target', 'klass', 'nickname']
 
-    def __init__(self, source: str, target: str, cls: str, nickname: str) -> None:
+    def __init__(self, source: str, target: str, klass: str, nickname: str) -> None:
         self.source = source
         self.target = target
-        self.cls = cls
+        self.klass = klass
         self.nickname = nickname
 
     def __repr__(self) -> str:
-        return 'TraceOperator(source={}, target={}, cls={}, nickname={})'.format(repr(self.source), repr(self.target), repr(self.cls), repr(self.nickname))
+        return 'TraceOperator(source={}, target={}, klass={}, nickname={})'.format(repr(self.source), repr(self.target), repr(self.klass), repr(self.nickname))
+
+    @classmethod
+    def from_line(cls, line: Line, decode: typing.Callable[[bytes], str] = lambda b: b.decode("utf-8")) -> Message:
+        source = None
+        if line.source is not None:
+            source = decode(line.source)
+        if line.command != 204:
+            raise ValueError("incorrect verb")
+        if not (len(line.arguments) == 4):
+            raise ValueError("wrong number of arguments")
+        i = 0
+        target = decode(line.arguments[i])
+        i += 1
+        # line.arguments[i]: 'Oper'
+        i += 1
+        klass = decode(line.arguments[i])
+        i += 1
+        nickname = decode(line.arguments[i])
+        i += 1
+        assert i == len(line.arguments)
+        return cls(source=source, target=target, klass=klass, nickname=nickname)
 
     def to_line(self, encode: typing.Callable[[str], bytes] = lambda s: s.encode("utf-8")) -> Line:
         source = None
@@ -3989,7 +2516,7 @@ class TraceOperator(Message):
         arguments = []
         arguments.append(encode(self.target))
         arguments.append(b'Oper')
-        arguments.append(encode(self.cls))
+        arguments.append(encode(self.klass))
         arguments.append(encode(self.nickname))
         return Line(source, b"204", arguments)
 
@@ -3999,16 +2526,37 @@ class TraceUser(Message):
     ``205 <target> User <class> <nickname>``
     """
 
-    __slots__ = ['target', 'cls', 'nickname']
+    __slots__ = ['target', 'klass', 'nickname']
 
-    def __init__(self, source: str, target: str, cls: str, nickname: str) -> None:
+    def __init__(self, source: str, target: str, klass: str, nickname: str) -> None:
         self.source = source
         self.target = target
-        self.cls = cls
+        self.klass = klass
         self.nickname = nickname
 
     def __repr__(self) -> str:
-        return 'TraceUser(source={}, target={}, cls={}, nickname={})'.format(repr(self.source), repr(self.target), repr(self.cls), repr(self.nickname))
+        return 'TraceUser(source={}, target={}, klass={}, nickname={})'.format(repr(self.source), repr(self.target), repr(self.klass), repr(self.nickname))
+
+    @classmethod
+    def from_line(cls, line: Line, decode: typing.Callable[[bytes], str] = lambda b: b.decode("utf-8")) -> Message:
+        source = None
+        if line.source is not None:
+            source = decode(line.source)
+        if line.command != 205:
+            raise ValueError("incorrect verb")
+        if not (len(line.arguments) == 4):
+            raise ValueError("wrong number of arguments")
+        i = 0
+        target = decode(line.arguments[i])
+        i += 1
+        # line.arguments[i]: 'User'
+        i += 1
+        klass = decode(line.arguments[i])
+        i += 1
+        nickname = decode(line.arguments[i])
+        i += 1
+        assert i == len(line.arguments)
+        return cls(source=source, target=target, klass=klass, nickname=nickname)
 
     def to_line(self, encode: typing.Callable[[str], bytes] = lambda s: s.encode("utf-8")) -> Line:
         source = None
@@ -4017,7 +2565,7 @@ class TraceUser(Message):
         arguments = []
         arguments.append(encode(self.target))
         arguments.append(b'User')
-        arguments.append(encode(self.cls))
+        arguments.append(encode(self.klass))
         arguments.append(encode(self.nickname))
         return Line(source, b"205", arguments)
 
@@ -4027,12 +2575,12 @@ class TraceServer(Message):
     ``206 <target> Serv <class> <s> <c> <server> <hostmask> <protocol-version>``
     """
 
-    __slots__ = ['target', 'cls', 's', 'c', 'server', 'hostmask', 'protocol_version']
+    __slots__ = ['target', 'klass', 's', 'c', 'server', 'hostmask', 'protocol_version']
 
-    def __init__(self, source: str, target: str, cls: str, s: str, c: str, server: str, hostmask: str, protocol_version: str) -> None:
+    def __init__(self, source: str, target: str, klass: str, s: str, c: str, server: str, hostmask: str, protocol_version: str) -> None:
         self.source = source
         self.target = target
-        self.cls = cls
+        self.klass = klass
         self.s = s
         self.c = c
         self.server = server
@@ -4040,7 +2588,36 @@ class TraceServer(Message):
         self.protocol_version = protocol_version
 
     def __repr__(self) -> str:
-        return 'TraceServer(source={}, target={}, cls={}, s={}, c={}, server={}, hostmask={}, protocol_version={})'.format(repr(self.source), repr(self.target), repr(self.cls), repr(self.s), repr(self.c), repr(self.server), repr(self.hostmask), repr(self.protocol_version))
+        return 'TraceServer(source={}, target={}, klass={}, s={}, c={}, server={}, hostmask={}, protocol_version={})'.format(repr(self.source), repr(self.target), repr(self.klass), repr(self.s), repr(self.c), repr(self.server), repr(self.hostmask), repr(self.protocol_version))
+
+    @classmethod
+    def from_line(cls, line: Line, decode: typing.Callable[[bytes], str] = lambda b: b.decode("utf-8")) -> Message:
+        source = None
+        if line.source is not None:
+            source = decode(line.source)
+        if line.command != 206:
+            raise ValueError("incorrect verb")
+        if not (len(line.arguments) == 8):
+            raise ValueError("wrong number of arguments")
+        i = 0
+        target = decode(line.arguments[i])
+        i += 1
+        # line.arguments[i]: 'Serv'
+        i += 1
+        klass = decode(line.arguments[i])
+        i += 1
+        s = decode(line.arguments[i])
+        i += 1
+        c = decode(line.arguments[i])
+        i += 1
+        server = decode(line.arguments[i])
+        i += 1
+        hostmask = decode(line.arguments[i])
+        i += 1
+        protocol_version = decode(line.arguments[i])
+        i += 1
+        assert i == len(line.arguments)
+        return cls(source=source, target=target, klass=klass, s=s, c=c, server=server, hostmask=hostmask, protocol_version=protocol_version)
 
     def to_line(self, encode: typing.Callable[[str], bytes] = lambda s: s.encode("utf-8")) -> Line:
         source = None
@@ -4049,7 +2626,7 @@ class TraceServer(Message):
         arguments = []
         arguments.append(encode(self.target))
         arguments.append(b'Serv')
-        arguments.append(encode(self.cls))
+        arguments.append(encode(self.klass))
         arguments.append(encode(self.s))
         arguments.append(encode(self.c))
         arguments.append(encode(self.server))
@@ -4063,18 +2640,43 @@ class TraceService(Message):
     ``207 <target> Service <class> <name> <type> <active-type>``
     """
 
-    __slots__ = ['target', 'cls', 'name', 'type', 'active_type']
+    __slots__ = ['target', 'klass', 'name', 'type', 'active_type']
 
-    def __init__(self, source: str, target: str, cls: str, name: str, type: str, active_type: str) -> None:
+    def __init__(self, source: str, target: str, klass: str, name: str, type: str, active_type: str) -> None:
         self.source = source
         self.target = target
-        self.cls = cls
+        self.klass = klass
         self.name = name
         self.type = type
         self.active_type = active_type
 
     def __repr__(self) -> str:
-        return 'TraceService(source={}, target={}, cls={}, name={}, type={}, active_type={})'.format(repr(self.source), repr(self.target), repr(self.cls), repr(self.name), repr(self.type), repr(self.active_type))
+        return 'TraceService(source={}, target={}, klass={}, name={}, type={}, active_type={})'.format(repr(self.source), repr(self.target), repr(self.klass), repr(self.name), repr(self.type), repr(self.active_type))
+
+    @classmethod
+    def from_line(cls, line: Line, decode: typing.Callable[[bytes], str] = lambda b: b.decode("utf-8")) -> Message:
+        source = None
+        if line.source is not None:
+            source = decode(line.source)
+        if line.command != 207:
+            raise ValueError("incorrect verb")
+        if not (len(line.arguments) == 6):
+            raise ValueError("wrong number of arguments")
+        i = 0
+        target = decode(line.arguments[i])
+        i += 1
+        # line.arguments[i]: 'Service'
+        i += 1
+        klass = decode(line.arguments[i])
+        i += 1
+        name = decode(line.arguments[i])
+        i += 1
+        type = decode(line.arguments[i])
+        i += 1
+        active_type = decode(line.arguments[i])
+        i += 1
+        assert i == len(line.arguments)
+        return cls(source=source, target=target, klass=klass, name=name, type=type, active_type=active_type)
 
     def to_line(self, encode: typing.Callable[[str], bytes] = lambda s: s.encode("utf-8")) -> Line:
         source = None
@@ -4083,7 +2685,7 @@ class TraceService(Message):
         arguments = []
         arguments.append(encode(self.target))
         arguments.append(b'Service')
-        arguments.append(encode(self.cls))
+        arguments.append(encode(self.klass))
         arguments.append(encode(self.name))
         arguments.append(encode(self.type))
         arguments.append(encode(self.active_type))
@@ -4106,6 +2708,27 @@ class TraceNewtype(Message):
     def __repr__(self) -> str:
         return 'TraceNewtype(source={}, target={}, newtype={}, name={})'.format(repr(self.source), repr(self.target), repr(self.newtype), repr(self.name))
 
+    @classmethod
+    def from_line(cls, line: Line, decode: typing.Callable[[bytes], str] = lambda b: b.decode("utf-8")) -> Message:
+        source = None
+        if line.source is not None:
+            source = decode(line.source)
+        if line.command != 208:
+            raise ValueError("incorrect verb")
+        if not (len(line.arguments) == 4):
+            raise ValueError("wrong number of arguments")
+        i = 0
+        target = decode(line.arguments[i])
+        i += 1
+        newtype = decode(line.arguments[i])
+        i += 1
+        # line.arguments[i]: '0'
+        i += 1
+        name = decode(line.arguments[i])
+        i += 1
+        assert i == len(line.arguments)
+        return cls(source=source, target=target, newtype=newtype, name=name)
+
     def to_line(self, encode: typing.Callable[[str], bytes] = lambda s: s.encode("utf-8")) -> Line:
         source = None
         if self.source is not None:
@@ -4123,16 +2746,37 @@ class TraceClass(Message):
     ``209 <target> Class <class> <int:count>``
     """
 
-    __slots__ = ['target', 'cls', 'count']
+    __slots__ = ['target', 'klass', 'count']
 
-    def __init__(self, source: str, target: str, cls: str, count: int) -> None:
+    def __init__(self, source: str, target: str, klass: str, count: int) -> None:
         self.source = source
         self.target = target
-        self.cls = cls
+        self.klass = klass
         self.count = count
 
     def __repr__(self) -> str:
-        return 'TraceClass(source={}, target={}, cls={}, count={})'.format(repr(self.source), repr(self.target), repr(self.cls), repr(self.count))
+        return 'TraceClass(source={}, target={}, klass={}, count={})'.format(repr(self.source), repr(self.target), repr(self.klass), repr(self.count))
+
+    @classmethod
+    def from_line(cls, line: Line, decode: typing.Callable[[bytes], str] = lambda b: b.decode("utf-8")) -> Message:
+        source = None
+        if line.source is not None:
+            source = decode(line.source)
+        if line.command != 209:
+            raise ValueError("incorrect verb")
+        if not (len(line.arguments) == 4):
+            raise ValueError("wrong number of arguments")
+        i = 0
+        target = decode(line.arguments[i])
+        i += 1
+        # line.arguments[i]: 'Class'
+        i += 1
+        klass = decode(line.arguments[i])
+        i += 1
+        count = int(line.arguments[i])
+        i += 1
+        assert i == len(line.arguments)
+        return cls(source=source, target=target, klass=klass, count=count)
 
     def to_line(self, encode: typing.Callable[[str], bytes] = lambda s: s.encode("utf-8")) -> Line:
         source = None
@@ -4141,7 +2785,7 @@ class TraceClass(Message):
         arguments = []
         arguments.append(encode(self.target))
         arguments.append(b'Class')
-        arguments.append(encode(self.cls))
+        arguments.append(encode(self.klass))
         arguments.append(encode(str(self.count)))
         return Line(source, b"209", arguments)
 
@@ -4166,6 +2810,35 @@ class StatsLinkInfo(Message):
 
     def __repr__(self) -> str:
         return 'StatsLinkInfo(source={}, target={}, name={}, sendq={}, sent_messages={}, sent_kbytes={}, recv_messages={}, recv_kbytes={}, uptime={})'.format(repr(self.source), repr(self.target), repr(self.name), repr(self.sendq), repr(self.sent_messages), repr(self.sent_kbytes), repr(self.recv_messages), repr(self.recv_kbytes), repr(self.uptime))
+
+    @classmethod
+    def from_line(cls, line: Line, decode: typing.Callable[[bytes], str] = lambda b: b.decode("utf-8")) -> Message:
+        source = None
+        if line.source is not None:
+            source = decode(line.source)
+        if line.command != 211:
+            raise ValueError("incorrect verb")
+        if not (len(line.arguments) == 8):
+            raise ValueError("wrong number of arguments")
+        i = 0
+        target = decode(line.arguments[i])
+        i += 1
+        name = decode(line.arguments[i])
+        i += 1
+        sendq = decode(line.arguments[i])
+        i += 1
+        sent_messages = int(line.arguments[i])
+        i += 1
+        sent_kbytes = int(line.arguments[i])
+        i += 1
+        recv_messages = int(line.arguments[i])
+        i += 1
+        recv_kbytes = int(line.arguments[i])
+        i += 1
+        uptime = int(line.arguments[i])
+        i += 1
+        assert i == len(line.arguments)
+        return cls(source=source, target=target, name=name, sendq=sendq, sent_messages=sent_messages, sent_kbytes=sent_kbytes, recv_messages=recv_messages, recv_kbytes=recv_kbytes, uptime=uptime)
 
     def to_line(self, encode: typing.Callable[[str], bytes] = lambda s: s.encode("utf-8")) -> Line:
         source = None
@@ -4201,6 +2874,29 @@ class StatsCommands(Message):
     def __repr__(self) -> str:
         return 'StatsCommands(source={}, target={}, command={}, count={}, bytecount={}, remote_count={})'.format(repr(self.source), repr(self.target), repr(self.command), repr(self.count), repr(self.bytecount), repr(self.remote_count))
 
+    @classmethod
+    def from_line(cls, line: Line, decode: typing.Callable[[bytes], str] = lambda b: b.decode("utf-8")) -> Message:
+        source = None
+        if line.source is not None:
+            source = decode(line.source)
+        if line.command != 212:
+            raise ValueError("incorrect verb")
+        if not (len(line.arguments) == 5):
+            raise ValueError("wrong number of arguments")
+        i = 0
+        target = decode(line.arguments[i])
+        i += 1
+        command = decode(line.arguments[i])
+        i += 1
+        count = int(line.arguments[i])
+        i += 1
+        bytecount = int(line.arguments[i])
+        i += 1
+        remote_count = int(line.arguments[i])
+        i += 1
+        assert i == len(line.arguments)
+        return cls(source=source, target=target, command=command, count=count, bytecount=bytecount, remote_count=remote_count)
+
     def to_line(self, encode: typing.Callable[[str], bytes] = lambda s: s.encode("utf-8")) -> Line:
         source = None
         if self.source is not None:
@@ -4229,6 +2925,25 @@ class StatsEnd(Message):
     def __repr__(self) -> str:
         return 'StatsEnd(source={}, target={}, letter={})'.format(repr(self.source), repr(self.target), repr(self.letter))
 
+    @classmethod
+    def from_line(cls, line: Line, decode: typing.Callable[[bytes], str] = lambda b: b.decode("utf-8")) -> Message:
+        source = None
+        if line.source is not None:
+            source = decode(line.source)
+        if line.command != 219:
+            raise ValueError("incorrect verb")
+        if not (len(line.arguments) == 3):
+            raise ValueError("wrong number of arguments")
+        i = 0
+        target = decode(line.arguments[i])
+        i += 1
+        letter = decode(line.arguments[i])
+        i += 1
+        # line.arguments[i]: 'End of STATS report'
+        i += 1
+        assert i == len(line.arguments)
+        return cls(source=source, target=target, letter=letter)
+
     def to_line(self, encode: typing.Callable[[str], bytes] = lambda s: s.encode("utf-8")) -> Line:
         source = None
         if self.source is not None:
@@ -4254,6 +2969,23 @@ class UserModeIs(Message):
 
     def __repr__(self) -> str:
         return 'UserModeIs(source={}, target={}, mode={})'.format(repr(self.source), repr(self.target), repr(self.mode))
+
+    @classmethod
+    def from_line(cls, line: Line, decode: typing.Callable[[bytes], str] = lambda b: b.decode("utf-8")) -> Message:
+        source = None
+        if line.source is not None:
+            source = decode(line.source)
+        if line.command != 221:
+            raise ValueError("incorrect verb")
+        if not (len(line.arguments) == 2):
+            raise ValueError("wrong number of arguments")
+        i = 0
+        target = decode(line.arguments[i])
+        i += 1
+        mode = decode(line.arguments[i])
+        i += 1
+        assert i == len(line.arguments)
+        return cls(source=source, target=target, mode=mode)
 
     def to_line(self, encode: typing.Callable[[str], bytes] = lambda s: s.encode("utf-8")) -> Line:
         source = None
@@ -4284,6 +3016,33 @@ class ServListReply(Message):
 
     def __repr__(self) -> str:
         return 'ServListReply(source={}, target={}, name={}, server={}, mask={}, type={}, hopcount={}, info={})'.format(repr(self.source), repr(self.target), repr(self.name), repr(self.server), repr(self.mask), repr(self.type), repr(self.hopcount), repr(self.info))
+
+    @classmethod
+    def from_line(cls, line: Line, decode: typing.Callable[[bytes], str] = lambda b: b.decode("utf-8")) -> Message:
+        source = None
+        if line.source is not None:
+            source = decode(line.source)
+        if line.command != 234:
+            raise ValueError("incorrect verb")
+        if not (len(line.arguments) == 7):
+            raise ValueError("wrong number of arguments")
+        i = 0
+        target = decode(line.arguments[i])
+        i += 1
+        name = decode(line.arguments[i])
+        i += 1
+        server = decode(line.arguments[i])
+        i += 1
+        mask = decode(line.arguments[i])
+        i += 1
+        type = decode(line.arguments[i])
+        i += 1
+        hopcount = int(line.arguments[i])
+        i += 1
+        info = decode(line.arguments[i])
+        i += 1
+        assert i == len(line.arguments)
+        return cls(source=source, target=target, name=name, server=server, mask=mask, type=type, hopcount=hopcount, info=info)
 
     def to_line(self, encode: typing.Callable[[str], bytes] = lambda s: s.encode("utf-8")) -> Line:
         source = None
@@ -4316,6 +3075,27 @@ class ServListEnd(Message):
     def __repr__(self) -> str:
         return 'ServListEnd(source={}, target={}, mask={}, type={})'.format(repr(self.source), repr(self.target), repr(self.mask), repr(self.type))
 
+    @classmethod
+    def from_line(cls, line: Line, decode: typing.Callable[[bytes], str] = lambda b: b.decode("utf-8")) -> Message:
+        source = None
+        if line.source is not None:
+            source = decode(line.source)
+        if line.command != 235:
+            raise ValueError("incorrect verb")
+        if not (len(line.arguments) == 4):
+            raise ValueError("wrong number of arguments")
+        i = 0
+        target = decode(line.arguments[i])
+        i += 1
+        mask = decode(line.arguments[i])
+        i += 1
+        type = decode(line.arguments[i])
+        i += 1
+        # line.arguments[i]: 'End of service listing'
+        i += 1
+        assert i == len(line.arguments)
+        return cls(source=source, target=target, mask=mask, type=type)
+
     def to_line(self, encode: typing.Callable[[str], bytes] = lambda s: s.encode("utf-8")) -> Line:
         source = None
         if self.source is not None:
@@ -4343,6 +3123,23 @@ class StatsUptime(Message):
     def __repr__(self) -> str:
         return 'StatsUptime(source={}, target={}, message={})'.format(repr(self.source), repr(self.target), repr(self.message))
 
+    @classmethod
+    def from_line(cls, line: Line, decode: typing.Callable[[bytes], str] = lambda b: b.decode("utf-8")) -> Message:
+        source = None
+        if line.source is not None:
+            source = decode(line.source)
+        if line.command != 242:
+            raise ValueError("incorrect verb")
+        if not (len(line.arguments) == 2):
+            raise ValueError("wrong number of arguments")
+        i = 0
+        target = decode(line.arguments[i])
+        i += 1
+        message = decode(line.arguments[i])
+        i += 1
+        assert i == len(line.arguments)
+        return cls(source=source, target=target, message=message)
+
     def to_line(self, encode: typing.Callable[[str], bytes] = lambda s: s.encode("utf-8")) -> Line:
         source = None
         if self.source is not None:
@@ -4368,6 +3165,29 @@ class StatsOline(Message):
 
     def __repr__(self) -> str:
         return 'StatsOline(source={}, target={}, hostmask={}, name={})'.format(repr(self.source), repr(self.target), repr(self.hostmask), repr(self.name))
+
+    @classmethod
+    def from_line(cls, line: Line, decode: typing.Callable[[bytes], str] = lambda b: b.decode("utf-8")) -> Message:
+        source = None
+        if line.source is not None:
+            source = decode(line.source)
+        if line.command != 243:
+            raise ValueError("incorrect verb")
+        if not (len(line.arguments) == 5):
+            raise ValueError("wrong number of arguments")
+        i = 0
+        target = decode(line.arguments[i])
+        i += 1
+        # line.arguments[i]: 'O'
+        i += 1
+        hostmask = decode(line.arguments[i])
+        i += 1
+        # line.arguments[i]: '*'
+        i += 1
+        name = decode(line.arguments[i])
+        i += 1
+        assert i == len(line.arguments)
+        return cls(source=source, target=target, hostmask=hostmask, name=name)
 
     def to_line(self, encode: typing.Callable[[str], bytes] = lambda s: s.encode("utf-8")) -> Line:
         source = None
@@ -4397,6 +3217,23 @@ class LuserClient(Message):
     def __repr__(self) -> str:
         return 'LuserClient(source={}, target={}, message={})'.format(repr(self.source), repr(self.target), repr(self.message))
 
+    @classmethod
+    def from_line(cls, line: Line, decode: typing.Callable[[bytes], str] = lambda b: b.decode("utf-8")) -> Message:
+        source = None
+        if line.source is not None:
+            source = decode(line.source)
+        if line.command != 251:
+            raise ValueError("incorrect verb")
+        if not (len(line.arguments) == 2):
+            raise ValueError("wrong number of arguments")
+        i = 0
+        target = decode(line.arguments[i])
+        i += 1
+        message = decode(line.arguments[i])
+        i += 1
+        assert i == len(line.arguments)
+        return cls(source=source, target=target, message=message)
+
     def to_line(self, encode: typing.Callable[[str], bytes] = lambda s: s.encode("utf-8")) -> Line:
         source = None
         if self.source is not None:
@@ -4421,6 +3258,25 @@ class LuserOp(Message):
 
     def __repr__(self) -> str:
         return 'LuserOp(source={}, target={}, count={})'.format(repr(self.source), repr(self.target), repr(self.count))
+
+    @classmethod
+    def from_line(cls, line: Line, decode: typing.Callable[[bytes], str] = lambda b: b.decode("utf-8")) -> Message:
+        source = None
+        if line.source is not None:
+            source = decode(line.source)
+        if line.command != 252:
+            raise ValueError("incorrect verb")
+        if not (len(line.arguments) == 3):
+            raise ValueError("wrong number of arguments")
+        i = 0
+        target = decode(line.arguments[i])
+        i += 1
+        count = int(line.arguments[i])
+        i += 1
+        # line.arguments[i]: 'operator(s) online'
+        i += 1
+        assert i == len(line.arguments)
+        return cls(source=source, target=target, count=count)
 
     def to_line(self, encode: typing.Callable[[str], bytes] = lambda s: s.encode("utf-8")) -> Line:
         source = None
@@ -4448,6 +3304,25 @@ class LuserUnknown(Message):
     def __repr__(self) -> str:
         return 'LuserUnknown(source={}, target={}, count={})'.format(repr(self.source), repr(self.target), repr(self.count))
 
+    @classmethod
+    def from_line(cls, line: Line, decode: typing.Callable[[bytes], str] = lambda b: b.decode("utf-8")) -> Message:
+        source = None
+        if line.source is not None:
+            source = decode(line.source)
+        if line.command != 253:
+            raise ValueError("incorrect verb")
+        if not (len(line.arguments) == 3):
+            raise ValueError("wrong number of arguments")
+        i = 0
+        target = decode(line.arguments[i])
+        i += 1
+        count = int(line.arguments[i])
+        i += 1
+        # line.arguments[i]: 'unknown connection(s)'
+        i += 1
+        assert i == len(line.arguments)
+        return cls(source=source, target=target, count=count)
+
     def to_line(self, encode: typing.Callable[[str], bytes] = lambda s: s.encode("utf-8")) -> Line:
         source = None
         if self.source is not None:
@@ -4473,6 +3348,25 @@ class LuserChannels(Message):
 
     def __repr__(self) -> str:
         return 'LuserChannels(source={}, target={}, count={})'.format(repr(self.source), repr(self.target), repr(self.count))
+
+    @classmethod
+    def from_line(cls, line: Line, decode: typing.Callable[[bytes], str] = lambda b: b.decode("utf-8")) -> Message:
+        source = None
+        if line.source is not None:
+            source = decode(line.source)
+        if line.command != 254:
+            raise ValueError("incorrect verb")
+        if not (len(line.arguments) == 3):
+            raise ValueError("wrong number of arguments")
+        i = 0
+        target = decode(line.arguments[i])
+        i += 1
+        count = int(line.arguments[i])
+        i += 1
+        # line.arguments[i]: 'channels formed'
+        i += 1
+        assert i == len(line.arguments)
+        return cls(source=source, target=target, count=count)
 
     def to_line(self, encode: typing.Callable[[str], bytes] = lambda s: s.encode("utf-8")) -> Line:
         source = None
@@ -4500,6 +3394,23 @@ class LuserMe(Message):
     def __repr__(self) -> str:
         return 'LuserMe(source={}, target={}, message={})'.format(repr(self.source), repr(self.target), repr(self.message))
 
+    @classmethod
+    def from_line(cls, line: Line, decode: typing.Callable[[bytes], str] = lambda b: b.decode("utf-8")) -> Message:
+        source = None
+        if line.source is not None:
+            source = decode(line.source)
+        if line.command != 255:
+            raise ValueError("incorrect verb")
+        if not (len(line.arguments) == 2):
+            raise ValueError("wrong number of arguments")
+        i = 0
+        target = decode(line.arguments[i])
+        i += 1
+        message = decode(line.arguments[i])
+        i += 1
+        assert i == len(line.arguments)
+        return cls(source=source, target=target, message=message)
+
     def to_line(self, encode: typing.Callable[[str], bytes] = lambda s: s.encode("utf-8")) -> Line:
         source = None
         if self.source is not None:
@@ -4524,6 +3435,25 @@ class AdminMe(Message):
 
     def __repr__(self) -> str:
         return 'AdminMe(source={}, target={}, server={})'.format(repr(self.source), repr(self.target), repr(self.server))
+
+    @classmethod
+    def from_line(cls, line: Line, decode: typing.Callable[[bytes], str] = lambda b: b.decode("utf-8")) -> Message:
+        source = None
+        if line.source is not None:
+            source = decode(line.source)
+        if line.command != 256:
+            raise ValueError("incorrect verb")
+        if not (len(line.arguments) == 3):
+            raise ValueError("wrong number of arguments")
+        i = 0
+        target = decode(line.arguments[i])
+        i += 1
+        server = decode(line.arguments[i])
+        i += 1
+        # line.arguments[i]: 'Administrative info'
+        i += 1
+        assert i == len(line.arguments)
+        return cls(source=source, target=target, server=server)
 
     def to_line(self, encode: typing.Callable[[str], bytes] = lambda s: s.encode("utf-8")) -> Line:
         source = None
@@ -4551,6 +3481,23 @@ class AdminLoc1(Message):
     def __repr__(self) -> str:
         return 'AdminLoc1(source={}, target={}, message={})'.format(repr(self.source), repr(self.target), repr(self.message))
 
+    @classmethod
+    def from_line(cls, line: Line, decode: typing.Callable[[bytes], str] = lambda b: b.decode("utf-8")) -> Message:
+        source = None
+        if line.source is not None:
+            source = decode(line.source)
+        if line.command != 257:
+            raise ValueError("incorrect verb")
+        if not (len(line.arguments) == 2):
+            raise ValueError("wrong number of arguments")
+        i = 0
+        target = decode(line.arguments[i])
+        i += 1
+        message = decode(line.arguments[i])
+        i += 1
+        assert i == len(line.arguments)
+        return cls(source=source, target=target, message=message)
+
     def to_line(self, encode: typing.Callable[[str], bytes] = lambda s: s.encode("utf-8")) -> Line:
         source = None
         if self.source is not None:
@@ -4575,6 +3522,23 @@ class AdminLoc2(Message):
 
     def __repr__(self) -> str:
         return 'AdminLoc2(source={}, target={}, message={})'.format(repr(self.source), repr(self.target), repr(self.message))
+
+    @classmethod
+    def from_line(cls, line: Line, decode: typing.Callable[[bytes], str] = lambda b: b.decode("utf-8")) -> Message:
+        source = None
+        if line.source is not None:
+            source = decode(line.source)
+        if line.command != 258:
+            raise ValueError("incorrect verb")
+        if not (len(line.arguments) == 2):
+            raise ValueError("wrong number of arguments")
+        i = 0
+        target = decode(line.arguments[i])
+        i += 1
+        message = decode(line.arguments[i])
+        i += 1
+        assert i == len(line.arguments)
+        return cls(source=source, target=target, message=message)
 
     def to_line(self, encode: typing.Callable[[str], bytes] = lambda s: s.encode("utf-8")) -> Line:
         source = None
@@ -4601,6 +3565,23 @@ class AdminEmail(Message):
     def __repr__(self) -> str:
         return 'AdminEmail(source={}, target={}, email={})'.format(repr(self.source), repr(self.target), repr(self.email))
 
+    @classmethod
+    def from_line(cls, line: Line, decode: typing.Callable[[bytes], str] = lambda b: b.decode("utf-8")) -> Message:
+        source = None
+        if line.source is not None:
+            source = decode(line.source)
+        if line.command != 259:
+            raise ValueError("incorrect verb")
+        if not (len(line.arguments) == 2):
+            raise ValueError("wrong number of arguments")
+        i = 0
+        target = decode(line.arguments[i])
+        i += 1
+        email = decode(line.arguments[i])
+        i += 1
+        assert i == len(line.arguments)
+        return cls(source=source, target=target, email=email)
+
     def to_line(self, encode: typing.Callable[[str], bytes] = lambda s: s.encode("utf-8")) -> Line:
         source = None
         if self.source is not None:
@@ -4626,6 +3607,27 @@ class TraceLog(Message):
 
     def __repr__(self) -> str:
         return 'TraceLog(source={}, target={}, logfile={}, debug_level={})'.format(repr(self.source), repr(self.target), repr(self.logfile), repr(self.debug_level))
+
+    @classmethod
+    def from_line(cls, line: Line, decode: typing.Callable[[bytes], str] = lambda b: b.decode("utf-8")) -> Message:
+        source = None
+        if line.source is not None:
+            source = decode(line.source)
+        if line.command != 261:
+            raise ValueError("incorrect verb")
+        if not (len(line.arguments) == 4):
+            raise ValueError("wrong number of arguments")
+        i = 0
+        target = decode(line.arguments[i])
+        i += 1
+        # line.arguments[i]: 'File'
+        i += 1
+        logfile = decode(line.arguments[i])
+        i += 1
+        debug_level = decode(line.arguments[i])
+        i += 1
+        assert i == len(line.arguments)
+        return cls(source=source, target=target, logfile=logfile, debug_level=debug_level)
 
     def to_line(self, encode: typing.Callable[[str], bytes] = lambda s: s.encode("utf-8")) -> Line:
         source = None
@@ -4655,6 +3657,27 @@ class TraceEnd(Message):
     def __repr__(self) -> str:
         return 'TraceEnd(source={}, target={}, server={}, version={})'.format(repr(self.source), repr(self.target), repr(self.server), repr(self.version))
 
+    @classmethod
+    def from_line(cls, line: Line, decode: typing.Callable[[bytes], str] = lambda b: b.decode("utf-8")) -> Message:
+        source = None
+        if line.source is not None:
+            source = decode(line.source)
+        if line.command != 262:
+            raise ValueError("incorrect verb")
+        if not (len(line.arguments) == 4):
+            raise ValueError("wrong number of arguments")
+        i = 0
+        target = decode(line.arguments[i])
+        i += 1
+        server = decode(line.arguments[i])
+        i += 1
+        version = decode(line.arguments[i])
+        i += 1
+        # line.arguments[i]: 'End of TRACE'
+        i += 1
+        assert i == len(line.arguments)
+        return cls(source=source, target=target, server=server, version=version)
+
     def to_line(self, encode: typing.Callable[[str], bytes] = lambda s: s.encode("utf-8")) -> Line:
         source = None
         if self.source is not None:
@@ -4682,6 +3705,25 @@ class TryAgain(Message):
     def __repr__(self) -> str:
         return 'TryAgain(source={}, target={}, command={})'.format(repr(self.source), repr(self.target), repr(self.command))
 
+    @classmethod
+    def from_line(cls, line: Line, decode: typing.Callable[[bytes], str] = lambda b: b.decode("utf-8")) -> Message:
+        source = None
+        if line.source is not None:
+            source = decode(line.source)
+        if line.command != 263:
+            raise ValueError("incorrect verb")
+        if not (len(line.arguments) == 3):
+            raise ValueError("wrong number of arguments")
+        i = 0
+        target = decode(line.arguments[i])
+        i += 1
+        command = decode(line.arguments[i])
+        i += 1
+        # line.arguments[i]: 'Please wait a while and try again.'
+        i += 1
+        assert i == len(line.arguments)
+        return cls(source=source, target=target, command=command)
+
     def to_line(self, encode: typing.Callable[[str], bytes] = lambda s: s.encode("utf-8")) -> Line:
         source = None
         if self.source is not None:
@@ -4708,6 +3750,25 @@ class AwayReply(Message):
 
     def __repr__(self) -> str:
         return 'AwayReply(source={}, target={}, nickname={}, message={})'.format(repr(self.source), repr(self.target), repr(self.nickname), repr(self.message))
+
+    @classmethod
+    def from_line(cls, line: Line, decode: typing.Callable[[bytes], str] = lambda b: b.decode("utf-8")) -> Message:
+        source = None
+        if line.source is not None:
+            source = decode(line.source)
+        if line.command != 301:
+            raise ValueError("incorrect verb")
+        if not (len(line.arguments) == 3):
+            raise ValueError("wrong number of arguments")
+        i = 0
+        target = decode(line.arguments[i])
+        i += 1
+        nickname = decode(line.arguments[i])
+        i += 1
+        message = decode(line.arguments[i])
+        i += 1
+        assert i == len(line.arguments)
+        return cls(source=source, target=target, nickname=nickname, message=message)
 
     def to_line(self, encode: typing.Callable[[str], bytes] = lambda s: s.encode("utf-8")) -> Line:
         source = None
@@ -4737,6 +3798,23 @@ class UserHostReply(Message):
     def __repr__(self) -> str:
         return 'UserHostReply(source={}, target={}, message={})'.format(repr(self.source), repr(self.target), repr(self.message))
 
+    @classmethod
+    def from_line(cls, line: Line, decode: typing.Callable[[bytes], str] = lambda b: b.decode("utf-8")) -> Message:
+        source = None
+        if line.source is not None:
+            source = decode(line.source)
+        if line.command != 302:
+            raise ValueError("incorrect verb")
+        if not (len(line.arguments) == 2):
+            raise ValueError("wrong number of arguments")
+        i = 0
+        target = decode(line.arguments[i])
+        i += 1
+        message = decode(line.arguments[i])
+        i += 1
+        assert i == len(line.arguments)
+        return cls(source=source, target=target, message=message)
+
     def to_line(self, encode: typing.Callable[[str], bytes] = lambda s: s.encode("utf-8")) -> Line:
         source = None
         if self.source is not None:
@@ -4764,6 +3842,23 @@ class IsOnReply(Message):
     def __repr__(self) -> str:
         return 'IsOnReply(source={}, target={}, message={})'.format(repr(self.source), repr(self.target), repr(self.message))
 
+    @classmethod
+    def from_line(cls, line: Line, decode: typing.Callable[[bytes], str] = lambda b: b.decode("utf-8")) -> Message:
+        source = None
+        if line.source is not None:
+            source = decode(line.source)
+        if line.command != 303:
+            raise ValueError("incorrect verb")
+        if not (len(line.arguments) == 2):
+            raise ValueError("wrong number of arguments")
+        i = 0
+        target = decode(line.arguments[i])
+        i += 1
+        message = decode(line.arguments[i])
+        i += 1
+        assert i == len(line.arguments)
+        return cls(source=source, target=target, message=message)
+
     def to_line(self, encode: typing.Callable[[str], bytes] = lambda s: s.encode("utf-8")) -> Line:
         source = None
         if self.source is not None:
@@ -4788,6 +3883,23 @@ class UnawayReply(Message):
     def __repr__(self) -> str:
         return 'UnawayReply(source={}, target={})'.format(repr(self.source), repr(self.target))
 
+    @classmethod
+    def from_line(cls, line: Line, decode: typing.Callable[[bytes], str] = lambda b: b.decode("utf-8")) -> Message:
+        source = None
+        if line.source is not None:
+            source = decode(line.source)
+        if line.command != 305:
+            raise ValueError("incorrect verb")
+        if not (len(line.arguments) == 2):
+            raise ValueError("wrong number of arguments")
+        i = 0
+        target = decode(line.arguments[i])
+        i += 1
+        # line.arguments[i]: 'You are no longer marked as being away'
+        i += 1
+        assert i == len(line.arguments)
+        return cls(source=source, target=target)
+
     def to_line(self, encode: typing.Callable[[str], bytes] = lambda s: s.encode("utf-8")) -> Line:
         source = None
         if self.source is not None:
@@ -4811,6 +3923,23 @@ class NowAwayReply(Message):
 
     def __repr__(self) -> str:
         return 'NowAwayReply(source={}, target={})'.format(repr(self.source), repr(self.target))
+
+    @classmethod
+    def from_line(cls, line: Line, decode: typing.Callable[[bytes], str] = lambda b: b.decode("utf-8")) -> Message:
+        source = None
+        if line.source is not None:
+            source = decode(line.source)
+        if line.command != 306:
+            raise ValueError("incorrect verb")
+        if not (len(line.arguments) == 2):
+            raise ValueError("wrong number of arguments")
+        i = 0
+        target = decode(line.arguments[i])
+        i += 1
+        # line.arguments[i]: 'You have been marked as being away'
+        i += 1
+        assert i == len(line.arguments)
+        return cls(source=source, target=target)
 
     def to_line(self, encode: typing.Callable[[str], bytes] = lambda s: s.encode("utf-8")) -> Line:
         source = None
@@ -4839,6 +3968,31 @@ class WhoIsUser(Message):
 
     def __repr__(self) -> str:
         return 'WhoIsUser(source={}, target={}, nickname={}, user={}, host={}, realname={})'.format(repr(self.source), repr(self.target), repr(self.nickname), repr(self.user), repr(self.host), repr(self.realname))
+
+    @classmethod
+    def from_line(cls, line: Line, decode: typing.Callable[[bytes], str] = lambda b: b.decode("utf-8")) -> Message:
+        source = None
+        if line.source is not None:
+            source = decode(line.source)
+        if line.command != 311:
+            raise ValueError("incorrect verb")
+        if not (len(line.arguments) == 6):
+            raise ValueError("wrong number of arguments")
+        i = 0
+        target = decode(line.arguments[i])
+        i += 1
+        nickname = decode(line.arguments[i])
+        i += 1
+        user = decode(line.arguments[i])
+        i += 1
+        host = decode(line.arguments[i])
+        i += 1
+        # line.arguments[i]: '*'
+        i += 1
+        realname = decode(line.arguments[i])
+        i += 1
+        assert i == len(line.arguments)
+        return cls(source=source, target=target, nickname=nickname, user=user, host=host, realname=realname)
 
     def to_line(self, encode: typing.Callable[[str], bytes] = lambda s: s.encode("utf-8")) -> Line:
         source = None
@@ -4871,6 +4025,27 @@ class WhoIsServer(Message):
     def __repr__(self) -> str:
         return 'WhoIsServer(source={}, target={}, nickname={}, server={}, info={})'.format(repr(self.source), repr(self.target), repr(self.nickname), repr(self.server), repr(self.info))
 
+    @classmethod
+    def from_line(cls, line: Line, decode: typing.Callable[[bytes], str] = lambda b: b.decode("utf-8")) -> Message:
+        source = None
+        if line.source is not None:
+            source = decode(line.source)
+        if line.command != 312:
+            raise ValueError("incorrect verb")
+        if not (len(line.arguments) == 4):
+            raise ValueError("wrong number of arguments")
+        i = 0
+        target = decode(line.arguments[i])
+        i += 1
+        nickname = decode(line.arguments[i])
+        i += 1
+        server = decode(line.arguments[i])
+        i += 1
+        info = decode(line.arguments[i])
+        i += 1
+        assert i == len(line.arguments)
+        return cls(source=source, target=target, nickname=nickname, server=server, info=info)
+
     def to_line(self, encode: typing.Callable[[str], bytes] = lambda s: s.encode("utf-8")) -> Line:
         source = None
         if self.source is not None:
@@ -4897,6 +4072,25 @@ class WhoIsOperator(Message):
 
     def __repr__(self) -> str:
         return 'WhoIsOperator(source={}, target={}, nickname={})'.format(repr(self.source), repr(self.target), repr(self.nickname))
+
+    @classmethod
+    def from_line(cls, line: Line, decode: typing.Callable[[bytes], str] = lambda b: b.decode("utf-8")) -> Message:
+        source = None
+        if line.source is not None:
+            source = decode(line.source)
+        if line.command != 313:
+            raise ValueError("incorrect verb")
+        if not (len(line.arguments) == 3):
+            raise ValueError("wrong number of arguments")
+        i = 0
+        target = decode(line.arguments[i])
+        i += 1
+        nickname = decode(line.arguments[i])
+        i += 1
+        # line.arguments[i]: 'is an IRC operator'
+        i += 1
+        assert i == len(line.arguments)
+        return cls(source=source, target=target, nickname=nickname)
 
     def to_line(self, encode: typing.Callable[[str], bytes] = lambda s: s.encode("utf-8")) -> Line:
         source = None
@@ -4927,6 +4121,31 @@ class WhoWasUser(Message):
     def __repr__(self) -> str:
         return 'WhoWasUser(source={}, target={}, nickname={}, user={}, host={}, realname={})'.format(repr(self.source), repr(self.target), repr(self.nickname), repr(self.user), repr(self.host), repr(self.realname))
 
+    @classmethod
+    def from_line(cls, line: Line, decode: typing.Callable[[bytes], str] = lambda b: b.decode("utf-8")) -> Message:
+        source = None
+        if line.source is not None:
+            source = decode(line.source)
+        if line.command != 314:
+            raise ValueError("incorrect verb")
+        if not (len(line.arguments) == 6):
+            raise ValueError("wrong number of arguments")
+        i = 0
+        target = decode(line.arguments[i])
+        i += 1
+        nickname = decode(line.arguments[i])
+        i += 1
+        user = decode(line.arguments[i])
+        i += 1
+        host = decode(line.arguments[i])
+        i += 1
+        # line.arguments[i]: '*'
+        i += 1
+        realname = decode(line.arguments[i])
+        i += 1
+        assert i == len(line.arguments)
+        return cls(source=source, target=target, nickname=nickname, user=user, host=host, realname=realname)
+
     def to_line(self, encode: typing.Callable[[str], bytes] = lambda s: s.encode("utf-8")) -> Line:
         source = None
         if self.source is not None:
@@ -4956,6 +4175,25 @@ class WhoEnd(Message):
     def __repr__(self) -> str:
         return 'WhoEnd(source={}, target={}, name={})'.format(repr(self.source), repr(self.target), repr(self.name))
 
+    @classmethod
+    def from_line(cls, line: Line, decode: typing.Callable[[bytes], str] = lambda b: b.decode("utf-8")) -> Message:
+        source = None
+        if line.source is not None:
+            source = decode(line.source)
+        if line.command != 315:
+            raise ValueError("incorrect verb")
+        if not (len(line.arguments) == 3):
+            raise ValueError("wrong number of arguments")
+        i = 0
+        target = decode(line.arguments[i])
+        i += 1
+        name = decode(line.arguments[i])
+        i += 1
+        # line.arguments[i]: 'End of WHO list'
+        i += 1
+        assert i == len(line.arguments)
+        return cls(source=source, target=target, name=name)
+
     def to_line(self, encode: typing.Callable[[str], bytes] = lambda s: s.encode("utf-8")) -> Line:
         source = None
         if self.source is not None:
@@ -4982,6 +4220,27 @@ class WhoIsIdle(Message):
 
     def __repr__(self) -> str:
         return 'WhoIsIdle(source={}, target={}, nickname={}, time={})'.format(repr(self.source), repr(self.target), repr(self.nickname), repr(self.time))
+
+    @classmethod
+    def from_line(cls, line: Line, decode: typing.Callable[[bytes], str] = lambda b: b.decode("utf-8")) -> Message:
+        source = None
+        if line.source is not None:
+            source = decode(line.source)
+        if line.command != 317:
+            raise ValueError("incorrect verb")
+        if not (len(line.arguments) == 4):
+            raise ValueError("wrong number of arguments")
+        i = 0
+        target = decode(line.arguments[i])
+        i += 1
+        nickname = decode(line.arguments[i])
+        i += 1
+        time = int(line.arguments[i])
+        i += 1
+        # line.arguments[i]: 'seconds idle'
+        i += 1
+        assert i == len(line.arguments)
+        return cls(source=source, target=target, nickname=nickname, time=time)
 
     def to_line(self, encode: typing.Callable[[str], bytes] = lambda s: s.encode("utf-8")) -> Line:
         source = None
@@ -5010,6 +4269,25 @@ class WhoIsEnd(Message):
     def __repr__(self) -> str:
         return 'WhoIsEnd(source={}, target={}, nickname={})'.format(repr(self.source), repr(self.target), repr(self.nickname))
 
+    @classmethod
+    def from_line(cls, line: Line, decode: typing.Callable[[bytes], str] = lambda b: b.decode("utf-8")) -> Message:
+        source = None
+        if line.source is not None:
+            source = decode(line.source)
+        if line.command != 318:
+            raise ValueError("incorrect verb")
+        if not (len(line.arguments) == 3):
+            raise ValueError("wrong number of arguments")
+        i = 0
+        target = decode(line.arguments[i])
+        i += 1
+        nickname = decode(line.arguments[i])
+        i += 1
+        # line.arguments[i]: 'End of WHOIS list'
+        i += 1
+        assert i == len(line.arguments)
+        return cls(source=source, target=target, nickname=nickname)
+
     def to_line(self, encode: typing.Callable[[str], bytes] = lambda s: s.encode("utf-8")) -> Line:
         source = None
         if self.source is not None:
@@ -5036,6 +4314,25 @@ class WhoIsChannels(Message):
 
     def __repr__(self) -> str:
         return 'WhoIsChannels(source={}, target={}, nickname={}, channels={})'.format(repr(self.source), repr(self.target), repr(self.nickname), repr(self.channels))
+
+    @classmethod
+    def from_line(cls, line: Line, decode: typing.Callable[[bytes], str] = lambda b: b.decode("utf-8")) -> Message:
+        source = None
+        if line.source is not None:
+            source = decode(line.source)
+        if line.command != 319:
+            raise ValueError("incorrect verb")
+        if not (len(line.arguments) == 3):
+            raise ValueError("wrong number of arguments")
+        i = 0
+        target = decode(line.arguments[i])
+        i += 1
+        nickname = decode(line.arguments[i])
+        i += 1
+        channels = decode(line.arguments[i])
+        i += 1
+        assert i == len(line.arguments)
+        return cls(source=source, target=target, nickname=nickname, channels=channels)
 
     def to_line(self, encode: typing.Callable[[str], bytes] = lambda s: s.encode("utf-8")) -> Line:
         source = None
@@ -5065,6 +4362,27 @@ class ListReply(Message):
     def __repr__(self) -> str:
         return 'ListReply(source={}, target={}, channel={}, visible={}, topic={})'.format(repr(self.source), repr(self.target), repr(self.channel), repr(self.visible), repr(self.topic))
 
+    @classmethod
+    def from_line(cls, line: Line, decode: typing.Callable[[bytes], str] = lambda b: b.decode("utf-8")) -> Message:
+        source = None
+        if line.source is not None:
+            source = decode(line.source)
+        if line.command != 322:
+            raise ValueError("incorrect verb")
+        if not (len(line.arguments) == 4):
+            raise ValueError("wrong number of arguments")
+        i = 0
+        target = decode(line.arguments[i])
+        i += 1
+        channel = decode(line.arguments[i])
+        i += 1
+        visible = int(line.arguments[i])
+        i += 1
+        topic = decode(line.arguments[i])
+        i += 1
+        assert i == len(line.arguments)
+        return cls(source=source, target=target, channel=channel, visible=visible, topic=topic)
+
     def to_line(self, encode: typing.Callable[[str], bytes] = lambda s: s.encode("utf-8")) -> Line:
         source = None
         if self.source is not None:
@@ -5090,6 +4408,23 @@ class ListEnd(Message):
 
     def __repr__(self) -> str:
         return 'ListEnd(source={}, target={})'.format(repr(self.source), repr(self.target))
+
+    @classmethod
+    def from_line(cls, line: Line, decode: typing.Callable[[bytes], str] = lambda b: b.decode("utf-8")) -> Message:
+        source = None
+        if line.source is not None:
+            source = decode(line.source)
+        if line.command != 323:
+            raise ValueError("incorrect verb")
+        if not (len(line.arguments) == 2):
+            raise ValueError("wrong number of arguments")
+        i = 0
+        target = decode(line.arguments[i])
+        i += 1
+        # line.arguments[i]: 'End of LIST'
+        i += 1
+        assert i == len(line.arguments)
+        return cls(source=source, target=target)
 
     def to_line(self, encode: typing.Callable[[str], bytes] = lambda s: s.encode("utf-8")) -> Line:
         source = None
@@ -5117,6 +4452,27 @@ class ChannelModeIs(Message):
 
     def __repr__(self) -> str:
         return 'ChannelModeIs(source={}, target={}, channel={}, mode={}, params={})'.format(repr(self.source), repr(self.target), repr(self.channel), repr(self.mode), repr(self.params))
+
+    @classmethod
+    def from_line(cls, line: Line, decode: typing.Callable[[bytes], str] = lambda b: b.decode("utf-8")) -> Message:
+        source = None
+        if line.source is not None:
+            source = decode(line.source)
+        if line.command != 324:
+            raise ValueError("incorrect verb")
+        if not (len(line.arguments) == 4):
+            raise ValueError("wrong number of arguments")
+        i = 0
+        target = decode(line.arguments[i])
+        i += 1
+        channel = decode(line.arguments[i])
+        i += 1
+        mode = decode(line.arguments[i])
+        i += 1
+        params = decode(line.arguments[i])
+        i += 1
+        assert i == len(line.arguments)
+        return cls(source=source, target=target, channel=channel, mode=mode, params=params)
 
     def to_line(self, encode: typing.Callable[[str], bytes] = lambda s: s.encode("utf-8")) -> Line:
         source = None
@@ -5146,6 +4502,25 @@ class UniqOpIs(Message):
     def __repr__(self) -> str:
         return 'UniqOpIs(source={}, target={}, channel={}, nickname={})'.format(repr(self.source), repr(self.target), repr(self.channel), repr(self.nickname))
 
+    @classmethod
+    def from_line(cls, line: Line, decode: typing.Callable[[bytes], str] = lambda b: b.decode("utf-8")) -> Message:
+        source = None
+        if line.source is not None:
+            source = decode(line.source)
+        if line.command != 325:
+            raise ValueError("incorrect verb")
+        if not (len(line.arguments) == 3):
+            raise ValueError("wrong number of arguments")
+        i = 0
+        target = decode(line.arguments[i])
+        i += 1
+        channel = decode(line.arguments[i])
+        i += 1
+        nickname = decode(line.arguments[i])
+        i += 1
+        assert i == len(line.arguments)
+        return cls(source=source, target=target, channel=channel, nickname=nickname)
+
     def to_line(self, encode: typing.Callable[[str], bytes] = lambda s: s.encode("utf-8")) -> Line:
         source = None
         if self.source is not None:
@@ -5171,6 +4546,25 @@ class NoTopicReply(Message):
 
     def __repr__(self) -> str:
         return 'NoTopicReply(source={}, target={}, channel={})'.format(repr(self.source), repr(self.target), repr(self.channel))
+
+    @classmethod
+    def from_line(cls, line: Line, decode: typing.Callable[[bytes], str] = lambda b: b.decode("utf-8")) -> Message:
+        source = None
+        if line.source is not None:
+            source = decode(line.source)
+        if line.command != 331:
+            raise ValueError("incorrect verb")
+        if not (len(line.arguments) == 3):
+            raise ValueError("wrong number of arguments")
+        i = 0
+        target = decode(line.arguments[i])
+        i += 1
+        channel = decode(line.arguments[i])
+        i += 1
+        # line.arguments[i]: 'No topic is set'
+        i += 1
+        assert i == len(line.arguments)
+        return cls(source=source, target=target, channel=channel)
 
     def to_line(self, encode: typing.Callable[[str], bytes] = lambda s: s.encode("utf-8")) -> Line:
         source = None
@@ -5199,6 +4593,25 @@ class TopicReply(Message):
     def __repr__(self) -> str:
         return 'TopicReply(source={}, target={}, channel={}, topic={})'.format(repr(self.source), repr(self.target), repr(self.channel), repr(self.topic))
 
+    @classmethod
+    def from_line(cls, line: Line, decode: typing.Callable[[bytes], str] = lambda b: b.decode("utf-8")) -> Message:
+        source = None
+        if line.source is not None:
+            source = decode(line.source)
+        if line.command != 332:
+            raise ValueError("incorrect verb")
+        if not (len(line.arguments) == 3):
+            raise ValueError("wrong number of arguments")
+        i = 0
+        target = decode(line.arguments[i])
+        i += 1
+        channel = decode(line.arguments[i])
+        i += 1
+        topic = decode(line.arguments[i])
+        i += 1
+        assert i == len(line.arguments)
+        return cls(source=source, target=target, channel=channel, topic=topic)
+
     def to_line(self, encode: typing.Callable[[str], bytes] = lambda s: s.encode("utf-8")) -> Line:
         source = None
         if self.source is not None:
@@ -5226,6 +4639,25 @@ class Inviting(Message):
     def __repr__(self) -> str:
         return 'Inviting(source={}, target={}, channel={}, nick={})'.format(repr(self.source), repr(self.target), repr(self.channel), repr(self.nick))
 
+    @classmethod
+    def from_line(cls, line: Line, decode: typing.Callable[[bytes], str] = lambda b: b.decode("utf-8")) -> Message:
+        source = None
+        if line.source is not None:
+            source = decode(line.source)
+        if line.command != 341:
+            raise ValueError("incorrect verb")
+        if not (len(line.arguments) == 3):
+            raise ValueError("wrong number of arguments")
+        i = 0
+        target = decode(line.arguments[i])
+        i += 1
+        channel = decode(line.arguments[i])
+        i += 1
+        nick = decode(line.arguments[i])
+        i += 1
+        assert i == len(line.arguments)
+        return cls(source=source, target=target, channel=channel, nick=nick)
+
     def to_line(self, encode: typing.Callable[[str], bytes] = lambda s: s.encode("utf-8")) -> Line:
         source = None
         if self.source is not None:
@@ -5251,6 +4683,25 @@ class Summoning(Message):
 
     def __repr__(self) -> str:
         return 'Summoning(source={}, target={}, user={})'.format(repr(self.source), repr(self.target), repr(self.user))
+
+    @classmethod
+    def from_line(cls, line: Line, decode: typing.Callable[[bytes], str] = lambda b: b.decode("utf-8")) -> Message:
+        source = None
+        if line.source is not None:
+            source = decode(line.source)
+        if line.command != 342:
+            raise ValueError("incorrect verb")
+        if not (len(line.arguments) == 3):
+            raise ValueError("wrong number of arguments")
+        i = 0
+        target = decode(line.arguments[i])
+        i += 1
+        user = decode(line.arguments[i])
+        i += 1
+        # line.arguments[i]: 'Summoning user to IRC'
+        i += 1
+        assert i == len(line.arguments)
+        return cls(source=source, target=target, user=user)
 
     def to_line(self, encode: typing.Callable[[str], bytes] = lambda s: s.encode("utf-8")) -> Line:
         source = None
@@ -5279,6 +4730,25 @@ class InviteList(Message):
     def __repr__(self) -> str:
         return 'InviteList(source={}, target={}, channel={}, mask={})'.format(repr(self.source), repr(self.target), repr(self.channel), repr(self.mask))
 
+    @classmethod
+    def from_line(cls, line: Line, decode: typing.Callable[[bytes], str] = lambda b: b.decode("utf-8")) -> Message:
+        source = None
+        if line.source is not None:
+            source = decode(line.source)
+        if line.command != 346:
+            raise ValueError("incorrect verb")
+        if not (len(line.arguments) == 3):
+            raise ValueError("wrong number of arguments")
+        i = 0
+        target = decode(line.arguments[i])
+        i += 1
+        channel = decode(line.arguments[i])
+        i += 1
+        mask = decode(line.arguments[i])
+        i += 1
+        assert i == len(line.arguments)
+        return cls(source=source, target=target, channel=channel, mask=mask)
+
     def to_line(self, encode: typing.Callable[[str], bytes] = lambda s: s.encode("utf-8")) -> Line:
         source = None
         if self.source is not None:
@@ -5304,6 +4774,25 @@ class InviteListEnd(Message):
 
     def __repr__(self) -> str:
         return 'InviteListEnd(source={}, target={}, channel={})'.format(repr(self.source), repr(self.target), repr(self.channel))
+
+    @classmethod
+    def from_line(cls, line: Line, decode: typing.Callable[[bytes], str] = lambda b: b.decode("utf-8")) -> Message:
+        source = None
+        if line.source is not None:
+            source = decode(line.source)
+        if line.command != 347:
+            raise ValueError("incorrect verb")
+        if not (len(line.arguments) == 3):
+            raise ValueError("wrong number of arguments")
+        i = 0
+        target = decode(line.arguments[i])
+        i += 1
+        channel = decode(line.arguments[i])
+        i += 1
+        # line.arguments[i]: 'End of channel invite list'
+        i += 1
+        assert i == len(line.arguments)
+        return cls(source=source, target=target, channel=channel)
 
     def to_line(self, encode: typing.Callable[[str], bytes] = lambda s: s.encode("utf-8")) -> Line:
         source = None
@@ -5332,6 +4821,25 @@ class ExceptList(Message):
     def __repr__(self) -> str:
         return 'ExceptList(source={}, target={}, channel={}, mask={})'.format(repr(self.source), repr(self.target), repr(self.channel), repr(self.mask))
 
+    @classmethod
+    def from_line(cls, line: Line, decode: typing.Callable[[bytes], str] = lambda b: b.decode("utf-8")) -> Message:
+        source = None
+        if line.source is not None:
+            source = decode(line.source)
+        if line.command != 348:
+            raise ValueError("incorrect verb")
+        if not (len(line.arguments) == 3):
+            raise ValueError("wrong number of arguments")
+        i = 0
+        target = decode(line.arguments[i])
+        i += 1
+        channel = decode(line.arguments[i])
+        i += 1
+        mask = decode(line.arguments[i])
+        i += 1
+        assert i == len(line.arguments)
+        return cls(source=source, target=target, channel=channel, mask=mask)
+
     def to_line(self, encode: typing.Callable[[str], bytes] = lambda s: s.encode("utf-8")) -> Line:
         source = None
         if self.source is not None:
@@ -5357,6 +4865,25 @@ class ExceptListEnd(Message):
 
     def __repr__(self) -> str:
         return 'ExceptListEnd(source={}, target={}, channel={})'.format(repr(self.source), repr(self.target), repr(self.channel))
+
+    @classmethod
+    def from_line(cls, line: Line, decode: typing.Callable[[bytes], str] = lambda b: b.decode("utf-8")) -> Message:
+        source = None
+        if line.source is not None:
+            source = decode(line.source)
+        if line.command != 349:
+            raise ValueError("incorrect verb")
+        if not (len(line.arguments) == 3):
+            raise ValueError("wrong number of arguments")
+        i = 0
+        target = decode(line.arguments[i])
+        i += 1
+        channel = decode(line.arguments[i])
+        i += 1
+        # line.arguments[i]: 'End of channel exception list'
+        i += 1
+        assert i == len(line.arguments)
+        return cls(source=source, target=target, channel=channel)
 
     def to_line(self, encode: typing.Callable[[str], bytes] = lambda s: s.encode("utf-8")) -> Line:
         source = None
@@ -5385,6 +4912,27 @@ class VersionReply(Message):
 
     def __repr__(self) -> str:
         return 'VersionReply(source={}, target={}, version={}, server={}, comments={})'.format(repr(self.source), repr(self.target), repr(self.version), repr(self.server), repr(self.comments))
+
+    @classmethod
+    def from_line(cls, line: Line, decode: typing.Callable[[bytes], str] = lambda b: b.decode("utf-8")) -> Message:
+        source = None
+        if line.source is not None:
+            source = decode(line.source)
+        if line.command != 351:
+            raise ValueError("incorrect verb")
+        if not (len(line.arguments) == 4):
+            raise ValueError("wrong number of arguments")
+        i = 0
+        target = decode(line.arguments[i])
+        i += 1
+        version = decode(line.arguments[i])
+        i += 1
+        server = decode(line.arguments[i])
+        i += 1
+        comments = decode(line.arguments[i])
+        i += 1
+        assert i == len(line.arguments)
+        return cls(source=source, target=target, version=version, server=server, comments=comments)
 
     def to_line(self, encode: typing.Callable[[str], bytes] = lambda s: s.encode("utf-8")) -> Line:
         source = None
@@ -5419,6 +4967,35 @@ class WhoReply(Message):
     def __repr__(self) -> str:
         return 'WhoReply(source={}, target={}, channel={}, user={}, host={}, server={}, nickname={}, props={}, realname={})'.format(repr(self.source), repr(self.target), repr(self.channel), repr(self.user), repr(self.host), repr(self.server), repr(self.nickname), repr(self.props), repr(self.realname))
 
+    @classmethod
+    def from_line(cls, line: Line, decode: typing.Callable[[bytes], str] = lambda b: b.decode("utf-8")) -> Message:
+        source = None
+        if line.source is not None:
+            source = decode(line.source)
+        if line.command != 352:
+            raise ValueError("incorrect verb")
+        if not (len(line.arguments) == 8):
+            raise ValueError("wrong number of arguments")
+        i = 0
+        target = decode(line.arguments[i])
+        i += 1
+        channel = decode(line.arguments[i])
+        i += 1
+        user = decode(line.arguments[i])
+        i += 1
+        host = decode(line.arguments[i])
+        i += 1
+        server = decode(line.arguments[i])
+        i += 1
+        nickname = decode(line.arguments[i])
+        i += 1
+        props = decode(line.arguments[i])
+        i += 1
+        realname = decode(line.arguments[i])
+        i += 1
+        assert i == len(line.arguments)
+        return cls(source=source, target=target, channel=channel, user=user, host=host, server=server, nickname=nickname, props=props, realname=realname)
+
     def to_line(self, encode: typing.Callable[[str], bytes] = lambda s: s.encode("utf-8")) -> Line:
         source = None
         if self.source is not None:
@@ -5452,6 +5029,27 @@ class NamesReply(Message):
     def __repr__(self) -> str:
         return 'NamesReply(source={}, target={}, mode={}, channel={}, nicknames={})'.format(repr(self.source), repr(self.target), repr(self.mode), repr(self.channel), repr(self.nicknames))
 
+    @classmethod
+    def from_line(cls, line: Line, decode: typing.Callable[[bytes], str] = lambda b: b.decode("utf-8")) -> Message:
+        source = None
+        if line.source is not None:
+            source = decode(line.source)
+        if line.command != 353:
+            raise ValueError("incorrect verb")
+        if not (len(line.arguments) == 4):
+            raise ValueError("wrong number of arguments")
+        i = 0
+        target = decode(line.arguments[i])
+        i += 1
+        mode = decode(line.arguments[i])
+        i += 1
+        channel = decode(line.arguments[i])
+        i += 1
+        nicknames = [decode(x) for x in line.arguments[i].split()]
+        i += 1
+        assert i == len(line.arguments)
+        return cls(source=source, target=target, mode=mode, channel=channel, nicknames=nicknames)
+
     def to_line(self, encode: typing.Callable[[str], bytes] = lambda s: s.encode("utf-8")) -> Line:
         source = None
         if self.source is not None:
@@ -5481,6 +5079,27 @@ class LinksReply(Message):
     def __repr__(self) -> str:
         return 'LinksReply(source={}, target={}, mask={}, server={}, info={})'.format(repr(self.source), repr(self.target), repr(self.mask), repr(self.server), repr(self.info))
 
+    @classmethod
+    def from_line(cls, line: Line, decode: typing.Callable[[bytes], str] = lambda b: b.decode("utf-8")) -> Message:
+        source = None
+        if line.source is not None:
+            source = decode(line.source)
+        if line.command != 364:
+            raise ValueError("incorrect verb")
+        if not (len(line.arguments) == 4):
+            raise ValueError("wrong number of arguments")
+        i = 0
+        target = decode(line.arguments[i])
+        i += 1
+        mask = decode(line.arguments[i])
+        i += 1
+        server = decode(line.arguments[i])
+        i += 1
+        info = decode(line.arguments[i])
+        i += 1
+        assert i == len(line.arguments)
+        return cls(source=source, target=target, mask=mask, server=server, info=info)
+
     def to_line(self, encode: typing.Callable[[str], bytes] = lambda s: s.encode("utf-8")) -> Line:
         source = None
         if self.source is not None:
@@ -5508,6 +5127,25 @@ class LinksEnd(Message):
     def __repr__(self) -> str:
         return 'LinksEnd(source={}, target={}, mask={})'.format(repr(self.source), repr(self.target), repr(self.mask))
 
+    @classmethod
+    def from_line(cls, line: Line, decode: typing.Callable[[bytes], str] = lambda b: b.decode("utf-8")) -> Message:
+        source = None
+        if line.source is not None:
+            source = decode(line.source)
+        if line.command != 365:
+            raise ValueError("incorrect verb")
+        if not (len(line.arguments) == 3):
+            raise ValueError("wrong number of arguments")
+        i = 0
+        target = decode(line.arguments[i])
+        i += 1
+        mask = decode(line.arguments[i])
+        i += 1
+        # line.arguments[i]: 'End of LINKS list'
+        i += 1
+        assert i == len(line.arguments)
+        return cls(source=source, target=target, mask=mask)
+
     def to_line(self, encode: typing.Callable[[str], bytes] = lambda s: s.encode("utf-8")) -> Line:
         source = None
         if self.source is not None:
@@ -5533,6 +5171,25 @@ class NamesEnd(Message):
 
     def __repr__(self) -> str:
         return 'NamesEnd(source={}, target={}, channel={})'.format(repr(self.source), repr(self.target), repr(self.channel))
+
+    @classmethod
+    def from_line(cls, line: Line, decode: typing.Callable[[bytes], str] = lambda b: b.decode("utf-8")) -> Message:
+        source = None
+        if line.source is not None:
+            source = decode(line.source)
+        if line.command != 366:
+            raise ValueError("incorrect verb")
+        if not (len(line.arguments) == 3):
+            raise ValueError("wrong number of arguments")
+        i = 0
+        target = decode(line.arguments[i])
+        i += 1
+        channel = decode(line.arguments[i])
+        i += 1
+        # line.arguments[i]: 'End of NAMES list'
+        i += 1
+        assert i == len(line.arguments)
+        return cls(source=source, target=target, channel=channel)
 
     def to_line(self, encode: typing.Callable[[str], bytes] = lambda s: s.encode("utf-8")) -> Line:
         source = None
@@ -5561,6 +5218,25 @@ class BanList(Message):
     def __repr__(self) -> str:
         return 'BanList(source={}, target={}, channel={}, mask={})'.format(repr(self.source), repr(self.target), repr(self.channel), repr(self.mask))
 
+    @classmethod
+    def from_line(cls, line: Line, decode: typing.Callable[[bytes], str] = lambda b: b.decode("utf-8")) -> Message:
+        source = None
+        if line.source is not None:
+            source = decode(line.source)
+        if line.command != 367:
+            raise ValueError("incorrect verb")
+        if not (len(line.arguments) == 3):
+            raise ValueError("wrong number of arguments")
+        i = 0
+        target = decode(line.arguments[i])
+        i += 1
+        channel = decode(line.arguments[i])
+        i += 1
+        mask = decode(line.arguments[i])
+        i += 1
+        assert i == len(line.arguments)
+        return cls(source=source, target=target, channel=channel, mask=mask)
+
     def to_line(self, encode: typing.Callable[[str], bytes] = lambda s: s.encode("utf-8")) -> Line:
         source = None
         if self.source is not None:
@@ -5586,6 +5262,25 @@ class BanListEnd(Message):
 
     def __repr__(self) -> str:
         return 'BanListEnd(source={}, target={}, channel={})'.format(repr(self.source), repr(self.target), repr(self.channel))
+
+    @classmethod
+    def from_line(cls, line: Line, decode: typing.Callable[[bytes], str] = lambda b: b.decode("utf-8")) -> Message:
+        source = None
+        if line.source is not None:
+            source = decode(line.source)
+        if line.command != 368:
+            raise ValueError("incorrect verb")
+        if not (len(line.arguments) == 3):
+            raise ValueError("wrong number of arguments")
+        i = 0
+        target = decode(line.arguments[i])
+        i += 1
+        channel = decode(line.arguments[i])
+        i += 1
+        # line.arguments[i]: 'End of channel ban list'
+        i += 1
+        assert i == len(line.arguments)
+        return cls(source=source, target=target, channel=channel)
 
     def to_line(self, encode: typing.Callable[[str], bytes] = lambda s: s.encode("utf-8")) -> Line:
         source = None
@@ -5613,6 +5308,25 @@ class WhoWasEnd(Message):
     def __repr__(self) -> str:
         return 'WhoWasEnd(source={}, target={}, nickname={})'.format(repr(self.source), repr(self.target), repr(self.nickname))
 
+    @classmethod
+    def from_line(cls, line: Line, decode: typing.Callable[[bytes], str] = lambda b: b.decode("utf-8")) -> Message:
+        source = None
+        if line.source is not None:
+            source = decode(line.source)
+        if line.command != 369:
+            raise ValueError("incorrect verb")
+        if not (len(line.arguments) == 3):
+            raise ValueError("wrong number of arguments")
+        i = 0
+        target = decode(line.arguments[i])
+        i += 1
+        nickname = decode(line.arguments[i])
+        i += 1
+        # line.arguments[i]: 'End of WHOWAS'
+        i += 1
+        assert i == len(line.arguments)
+        return cls(source=source, target=target, nickname=nickname)
+
     def to_line(self, encode: typing.Callable[[str], bytes] = lambda s: s.encode("utf-8")) -> Line:
         source = None
         if self.source is not None:
@@ -5639,6 +5353,23 @@ class InfoReply(Message):
     def __repr__(self) -> str:
         return 'InfoReply(source={}, target={}, info={})'.format(repr(self.source), repr(self.target), repr(self.info))
 
+    @classmethod
+    def from_line(cls, line: Line, decode: typing.Callable[[bytes], str] = lambda b: b.decode("utf-8")) -> Message:
+        source = None
+        if line.source is not None:
+            source = decode(line.source)
+        if line.command != 371:
+            raise ValueError("incorrect verb")
+        if not (len(line.arguments) == 2):
+            raise ValueError("wrong number of arguments")
+        i = 0
+        target = decode(line.arguments[i])
+        i += 1
+        info = decode(line.arguments[i])
+        i += 1
+        assert i == len(line.arguments)
+        return cls(source=source, target=target, info=info)
+
     def to_line(self, encode: typing.Callable[[str], bytes] = lambda s: s.encode("utf-8")) -> Line:
         source = None
         if self.source is not None:
@@ -5664,6 +5395,23 @@ class MotdText(Message):
     def __repr__(self) -> str:
         return 'MotdText(source={}, target={}, message={})'.format(repr(self.source), repr(self.target), repr(self.message))
 
+    @classmethod
+    def from_line(cls, line: Line, decode: typing.Callable[[bytes], str] = lambda b: b.decode("utf-8")) -> Message:
+        source = None
+        if line.source is not None:
+            source = decode(line.source)
+        if line.command != 372:
+            raise ValueError("incorrect verb")
+        if not (len(line.arguments) == 2):
+            raise ValueError("wrong number of arguments")
+        i = 0
+        target = decode(line.arguments[i])
+        i += 1
+        message = decode(line.arguments[i])
+        i += 1
+        assert i == len(line.arguments)
+        return cls(source=source, target=target, message=message)
+
     def to_line(self, encode: typing.Callable[[str], bytes] = lambda s: s.encode("utf-8")) -> Line:
         source = None
         if self.source is not None:
@@ -5687,6 +5435,23 @@ class InfoEnd(Message):
 
     def __repr__(self) -> str:
         return 'InfoEnd(source={}, target={})'.format(repr(self.source), repr(self.target))
+
+    @classmethod
+    def from_line(cls, line: Line, decode: typing.Callable[[bytes], str] = lambda b: b.decode("utf-8")) -> Message:
+        source = None
+        if line.source is not None:
+            source = decode(line.source)
+        if line.command != 374:
+            raise ValueError("incorrect verb")
+        if not (len(line.arguments) == 2):
+            raise ValueError("wrong number of arguments")
+        i = 0
+        target = decode(line.arguments[i])
+        i += 1
+        # line.arguments[i]: 'End of INFO list'
+        i += 1
+        assert i == len(line.arguments)
+        return cls(source=source, target=target)
 
     def to_line(self, encode: typing.Callable[[str], bytes] = lambda s: s.encode("utf-8")) -> Line:
         source = None
@@ -5713,6 +5478,23 @@ class MotdStart(Message):
     def __repr__(self) -> str:
         return 'MotdStart(source={}, target={}, message={})'.format(repr(self.source), repr(self.target), repr(self.message))
 
+    @classmethod
+    def from_line(cls, line: Line, decode: typing.Callable[[bytes], str] = lambda b: b.decode("utf-8")) -> Message:
+        source = None
+        if line.source is not None:
+            source = decode(line.source)
+        if line.command != 375:
+            raise ValueError("incorrect verb")
+        if not (len(line.arguments) == 2):
+            raise ValueError("wrong number of arguments")
+        i = 0
+        target = decode(line.arguments[i])
+        i += 1
+        message = decode(line.arguments[i])
+        i += 1
+        assert i == len(line.arguments)
+        return cls(source=source, target=target, message=message)
+
     def to_line(self, encode: typing.Callable[[str], bytes] = lambda s: s.encode("utf-8")) -> Line:
         source = None
         if self.source is not None:
@@ -5736,6 +5518,23 @@ class MotdEnd(Message):
 
     def __repr__(self) -> str:
         return 'MotdEnd(source={}, target={})'.format(repr(self.source), repr(self.target))
+
+    @classmethod
+    def from_line(cls, line: Line, decode: typing.Callable[[bytes], str] = lambda b: b.decode("utf-8")) -> Message:
+        source = None
+        if line.source is not None:
+            source = decode(line.source)
+        if line.command != 376:
+            raise ValueError("incorrect verb")
+        if not (len(line.arguments) == 2):
+            raise ValueError("wrong number of arguments")
+        i = 0
+        target = decode(line.arguments[i])
+        i += 1
+        # line.arguments[i]: 'End of MOTD command'
+        i += 1
+        assert i == len(line.arguments)
+        return cls(source=source, target=target)
 
     def to_line(self, encode: typing.Callable[[str], bytes] = lambda s: s.encode("utf-8")) -> Line:
         source = None
@@ -5761,6 +5560,23 @@ class YoureOper(Message):
     def __repr__(self) -> str:
         return 'YoureOper(source={}, target={})'.format(repr(self.source), repr(self.target))
 
+    @classmethod
+    def from_line(cls, line: Line, decode: typing.Callable[[bytes], str] = lambda b: b.decode("utf-8")) -> Message:
+        source = None
+        if line.source is not None:
+            source = decode(line.source)
+        if line.command != 381:
+            raise ValueError("incorrect verb")
+        if not (len(line.arguments) == 2):
+            raise ValueError("wrong number of arguments")
+        i = 0
+        target = decode(line.arguments[i])
+        i += 1
+        # line.arguments[i]: 'You are now an IRC operator'
+        i += 1
+        assert i == len(line.arguments)
+        return cls(source=source, target=target)
+
     def to_line(self, encode: typing.Callable[[str], bytes] = lambda s: s.encode("utf-8")) -> Line:
         source = None
         if self.source is not None:
@@ -5785,6 +5601,25 @@ class Rehashing(Message):
 
     def __repr__(self) -> str:
         return 'Rehashing(source={}, target={}, file={})'.format(repr(self.source), repr(self.target), repr(self.file))
+
+    @classmethod
+    def from_line(cls, line: Line, decode: typing.Callable[[bytes], str] = lambda b: b.decode("utf-8")) -> Message:
+        source = None
+        if line.source is not None:
+            source = decode(line.source)
+        if line.command != 382:
+            raise ValueError("incorrect verb")
+        if not (len(line.arguments) == 3):
+            raise ValueError("wrong number of arguments")
+        i = 0
+        target = decode(line.arguments[i])
+        i += 1
+        file = decode(line.arguments[i])
+        i += 1
+        # line.arguments[i]: 'Rehashing'
+        i += 1
+        assert i == len(line.arguments)
+        return cls(source=source, target=target, file=file)
 
     def to_line(self, encode: typing.Callable[[str], bytes] = lambda s: s.encode("utf-8")) -> Line:
         source = None
@@ -5812,6 +5647,23 @@ class YoureService(Message):
     def __repr__(self) -> str:
         return 'YoureService(source={}, target={}, message={})'.format(repr(self.source), repr(self.target), repr(self.message))
 
+    @classmethod
+    def from_line(cls, line: Line, decode: typing.Callable[[bytes], str] = lambda b: b.decode("utf-8")) -> Message:
+        source = None
+        if line.source is not None:
+            source = decode(line.source)
+        if line.command != 383:
+            raise ValueError("incorrect verb")
+        if not (len(line.arguments) == 2):
+            raise ValueError("wrong number of arguments")
+        i = 0
+        target = decode(line.arguments[i])
+        i += 1
+        message = decode(line.arguments[i])
+        i += 1
+        assert i == len(line.arguments)
+        return cls(source=source, target=target, message=message)
+
     def to_line(self, encode: typing.Callable[[str], bytes] = lambda s: s.encode("utf-8")) -> Line:
         source = None
         if self.source is not None:
@@ -5838,6 +5690,25 @@ class TimeReply(Message):
     def __repr__(self) -> str:
         return 'TimeReply(source={}, target={}, server={}, time={})'.format(repr(self.source), repr(self.target), repr(self.server), repr(self.time))
 
+    @classmethod
+    def from_line(cls, line: Line, decode: typing.Callable[[bytes], str] = lambda b: b.decode("utf-8")) -> Message:
+        source = None
+        if line.source is not None:
+            source = decode(line.source)
+        if line.command != 391:
+            raise ValueError("incorrect verb")
+        if not (len(line.arguments) == 3):
+            raise ValueError("wrong number of arguments")
+        i = 0
+        target = decode(line.arguments[i])
+        i += 1
+        server = decode(line.arguments[i])
+        i += 1
+        time = decode(line.arguments[i])
+        i += 1
+        assert i == len(line.arguments)
+        return cls(source=source, target=target, server=server, time=time)
+
     def to_line(self, encode: typing.Callable[[str], bytes] = lambda s: s.encode("utf-8")) -> Line:
         source = None
         if self.source is not None:
@@ -5862,6 +5733,23 @@ class UsersStart(Message):
 
     def __repr__(self) -> str:
         return 'UsersStart(source={}, target={})'.format(repr(self.source), repr(self.target))
+
+    @classmethod
+    def from_line(cls, line: Line, decode: typing.Callable[[bytes], str] = lambda b: b.decode("utf-8")) -> Message:
+        source = None
+        if line.source is not None:
+            source = decode(line.source)
+        if line.command != 392:
+            raise ValueError("incorrect verb")
+        if not (len(line.arguments) == 2):
+            raise ValueError("wrong number of arguments")
+        i = 0
+        target = decode(line.arguments[i])
+        i += 1
+        # line.arguments[i]: 'UserID   Terminal  Host'
+        i += 1
+        assert i == len(line.arguments)
+        return cls(source=source, target=target)
 
     def to_line(self, encode: typing.Callable[[str], bytes] = lambda s: s.encode("utf-8")) -> Line:
         source = None
@@ -5888,6 +5776,23 @@ class UsersReply(Message):
     def __repr__(self) -> str:
         return 'UsersReply(source={}, target={}, message={})'.format(repr(self.source), repr(self.target), repr(self.message))
 
+    @classmethod
+    def from_line(cls, line: Line, decode: typing.Callable[[bytes], str] = lambda b: b.decode("utf-8")) -> Message:
+        source = None
+        if line.source is not None:
+            source = decode(line.source)
+        if line.command != 393:
+            raise ValueError("incorrect verb")
+        if not (len(line.arguments) == 2):
+            raise ValueError("wrong number of arguments")
+        i = 0
+        target = decode(line.arguments[i])
+        i += 1
+        message = decode(line.arguments[i])
+        i += 1
+        assert i == len(line.arguments)
+        return cls(source=source, target=target, message=message)
+
     def to_line(self, encode: typing.Callable[[str], bytes] = lambda s: s.encode("utf-8")) -> Line:
         source = None
         if self.source is not None:
@@ -5911,6 +5816,23 @@ class UsersEnd(Message):
 
     def __repr__(self) -> str:
         return 'UsersEnd(source={}, target={})'.format(repr(self.source), repr(self.target))
+
+    @classmethod
+    def from_line(cls, line: Line, decode: typing.Callable[[bytes], str] = lambda b: b.decode("utf-8")) -> Message:
+        source = None
+        if line.source is not None:
+            source = decode(line.source)
+        if line.command != 394:
+            raise ValueError("incorrect verb")
+        if not (len(line.arguments) == 2):
+            raise ValueError("wrong number of arguments")
+        i = 0
+        target = decode(line.arguments[i])
+        i += 1
+        # line.arguments[i]: 'End of users'
+        i += 1
+        assert i == len(line.arguments)
+        return cls(source=source, target=target)
 
     def to_line(self, encode: typing.Callable[[str], bytes] = lambda s: s.encode("utf-8")) -> Line:
         source = None
@@ -5936,6 +5858,23 @@ class NoUsers(Message):
     def __repr__(self) -> str:
         return 'NoUsers(source={}, target={})'.format(repr(self.source), repr(self.target))
 
+    @classmethod
+    def from_line(cls, line: Line, decode: typing.Callable[[bytes], str] = lambda b: b.decode("utf-8")) -> Message:
+        source = None
+        if line.source is not None:
+            source = decode(line.source)
+        if line.command != 395:
+            raise ValueError("incorrect verb")
+        if not (len(line.arguments) == 2):
+            raise ValueError("wrong number of arguments")
+        i = 0
+        target = decode(line.arguments[i])
+        i += 1
+        # line.arguments[i]: 'Nobody logged in'
+        i += 1
+        assert i == len(line.arguments)
+        return cls(source=source, target=target)
+
     def to_line(self, encode: typing.Callable[[str], bytes] = lambda s: s.encode("utf-8")) -> Line:
         source = None
         if self.source is not None:
@@ -5960,6 +5899,25 @@ class NoSuchNick(Message):
 
     def __repr__(self) -> str:
         return 'NoSuchNick(source={}, target={}, nickname={})'.format(repr(self.source), repr(self.target), repr(self.nickname))
+
+    @classmethod
+    def from_line(cls, line: Line, decode: typing.Callable[[bytes], str] = lambda b: b.decode("utf-8")) -> Message:
+        source = None
+        if line.source is not None:
+            source = decode(line.source)
+        if line.command != 401:
+            raise ValueError("incorrect verb")
+        if not (len(line.arguments) == 3):
+            raise ValueError("wrong number of arguments")
+        i = 0
+        target = decode(line.arguments[i])
+        i += 1
+        nickname = decode(line.arguments[i])
+        i += 1
+        # line.arguments[i]: 'No such nick/channel'
+        i += 1
+        assert i == len(line.arguments)
+        return cls(source=source, target=target, nickname=nickname)
 
     def to_line(self, encode: typing.Callable[[str], bytes] = lambda s: s.encode("utf-8")) -> Line:
         source = None
@@ -5987,6 +5945,25 @@ class NoSuchServer(Message):
     def __repr__(self) -> str:
         return 'NoSuchServer(source={}, target={}, server={})'.format(repr(self.source), repr(self.target), repr(self.server))
 
+    @classmethod
+    def from_line(cls, line: Line, decode: typing.Callable[[bytes], str] = lambda b: b.decode("utf-8")) -> Message:
+        source = None
+        if line.source is not None:
+            source = decode(line.source)
+        if line.command != 402:
+            raise ValueError("incorrect verb")
+        if not (len(line.arguments) == 3):
+            raise ValueError("wrong number of arguments")
+        i = 0
+        target = decode(line.arguments[i])
+        i += 1
+        server = decode(line.arguments[i])
+        i += 1
+        # line.arguments[i]: 'No such server'
+        i += 1
+        assert i == len(line.arguments)
+        return cls(source=source, target=target, server=server)
+
     def to_line(self, encode: typing.Callable[[str], bytes] = lambda s: s.encode("utf-8")) -> Line:
         source = None
         if self.source is not None:
@@ -6012,6 +5989,25 @@ class NoSuchChannel(Message):
 
     def __repr__(self) -> str:
         return 'NoSuchChannel(source={}, target={}, channel={})'.format(repr(self.source), repr(self.target), repr(self.channel))
+
+    @classmethod
+    def from_line(cls, line: Line, decode: typing.Callable[[bytes], str] = lambda b: b.decode("utf-8")) -> Message:
+        source = None
+        if line.source is not None:
+            source = decode(line.source)
+        if line.command != 403:
+            raise ValueError("incorrect verb")
+        if not (len(line.arguments) == 3):
+            raise ValueError("wrong number of arguments")
+        i = 0
+        target = decode(line.arguments[i])
+        i += 1
+        channel = decode(line.arguments[i])
+        i += 1
+        # line.arguments[i]: 'No such channel'
+        i += 1
+        assert i == len(line.arguments)
+        return cls(source=source, target=target, channel=channel)
 
     def to_line(self, encode: typing.Callable[[str], bytes] = lambda s: s.encode("utf-8")) -> Line:
         source = None
@@ -6039,6 +6035,25 @@ class CantSendToChan(Message):
     def __repr__(self) -> str:
         return 'CantSendToChan(source={}, target={}, channel={})'.format(repr(self.source), repr(self.target), repr(self.channel))
 
+    @classmethod
+    def from_line(cls, line: Line, decode: typing.Callable[[bytes], str] = lambda b: b.decode("utf-8")) -> Message:
+        source = None
+        if line.source is not None:
+            source = decode(line.source)
+        if line.command != 404:
+            raise ValueError("incorrect verb")
+        if not (len(line.arguments) == 3):
+            raise ValueError("wrong number of arguments")
+        i = 0
+        target = decode(line.arguments[i])
+        i += 1
+        channel = decode(line.arguments[i])
+        i += 1
+        # line.arguments[i]: 'Cannot send to channel'
+        i += 1
+        assert i == len(line.arguments)
+        return cls(source=source, target=target, channel=channel)
+
     def to_line(self, encode: typing.Callable[[str], bytes] = lambda s: s.encode("utf-8")) -> Line:
         source = None
         if self.source is not None:
@@ -6065,6 +6080,25 @@ class TooManyChannels(Message):
     def __repr__(self) -> str:
         return 'TooManyChannels(source={}, target={}, channel={})'.format(repr(self.source), repr(self.target), repr(self.channel))
 
+    @classmethod
+    def from_line(cls, line: Line, decode: typing.Callable[[bytes], str] = lambda b: b.decode("utf-8")) -> Message:
+        source = None
+        if line.source is not None:
+            source = decode(line.source)
+        if line.command != 405:
+            raise ValueError("incorrect verb")
+        if not (len(line.arguments) == 3):
+            raise ValueError("wrong number of arguments")
+        i = 0
+        target = decode(line.arguments[i])
+        i += 1
+        channel = decode(line.arguments[i])
+        i += 1
+        # line.arguments[i]: 'You have joined too many channels'
+        i += 1
+        assert i == len(line.arguments)
+        return cls(source=source, target=target, channel=channel)
+
     def to_line(self, encode: typing.Callable[[str], bytes] = lambda s: s.encode("utf-8")) -> Line:
         source = None
         if self.source is not None:
@@ -6090,6 +6124,25 @@ class WasNoSuchNick(Message):
 
     def __repr__(self) -> str:
         return 'WasNoSuchNick(source={}, target={}, nickname={})'.format(repr(self.source), repr(self.target), repr(self.nickname))
+
+    @classmethod
+    def from_line(cls, line: Line, decode: typing.Callable[[bytes], str] = lambda b: b.decode("utf-8")) -> Message:
+        source = None
+        if line.source is not None:
+            source = decode(line.source)
+        if line.command != 406:
+            raise ValueError("incorrect verb")
+        if not (len(line.arguments) == 3):
+            raise ValueError("wrong number of arguments")
+        i = 0
+        target = decode(line.arguments[i])
+        i += 1
+        nickname = decode(line.arguments[i])
+        i += 1
+        # line.arguments[i]: 'There was no such nickname'
+        i += 1
+        assert i == len(line.arguments)
+        return cls(source=source, target=target, nickname=nickname)
 
     def to_line(self, encode: typing.Callable[[str], bytes] = lambda s: s.encode("utf-8")) -> Line:
         source = None
@@ -6118,6 +6171,25 @@ class TooManyTargets(Message):
     def __repr__(self) -> str:
         return 'TooManyTargets(source={}, target={}, orig_target={}, message={})'.format(repr(self.source), repr(self.target), repr(self.orig_target), repr(self.message))
 
+    @classmethod
+    def from_line(cls, line: Line, decode: typing.Callable[[bytes], str] = lambda b: b.decode("utf-8")) -> Message:
+        source = None
+        if line.source is not None:
+            source = decode(line.source)
+        if line.command != 407:
+            raise ValueError("incorrect verb")
+        if not (len(line.arguments) == 3):
+            raise ValueError("wrong number of arguments")
+        i = 0
+        target = decode(line.arguments[i])
+        i += 1
+        orig_target = decode(line.arguments[i])
+        i += 1
+        message = decode(line.arguments[i])
+        i += 1
+        assert i == len(line.arguments)
+        return cls(source=source, target=target, orig_target=orig_target, message=message)
+
     def to_line(self, encode: typing.Callable[[str], bytes] = lambda s: s.encode("utf-8")) -> Line:
         source = None
         if self.source is not None:
@@ -6144,6 +6216,25 @@ class NoSuchService(Message):
     def __repr__(self) -> str:
         return 'NoSuchService(source={}, target={}, name={})'.format(repr(self.source), repr(self.target), repr(self.name))
 
+    @classmethod
+    def from_line(cls, line: Line, decode: typing.Callable[[bytes], str] = lambda b: b.decode("utf-8")) -> Message:
+        source = None
+        if line.source is not None:
+            source = decode(line.source)
+        if line.command != 408:
+            raise ValueError("incorrect verb")
+        if not (len(line.arguments) == 3):
+            raise ValueError("wrong number of arguments")
+        i = 0
+        target = decode(line.arguments[i])
+        i += 1
+        name = decode(line.arguments[i])
+        i += 1
+        # line.arguments[i]: 'No such service'
+        i += 1
+        assert i == len(line.arguments)
+        return cls(source=source, target=target, name=name)
+
     def to_line(self, encode: typing.Callable[[str], bytes] = lambda s: s.encode("utf-8")) -> Line:
         source = None
         if self.source is not None:
@@ -6169,6 +6260,23 @@ class NoOrigin(Message):
     def __repr__(self) -> str:
         return 'NoOrigin(source={}, target={})'.format(repr(self.source), repr(self.target))
 
+    @classmethod
+    def from_line(cls, line: Line, decode: typing.Callable[[bytes], str] = lambda b: b.decode("utf-8")) -> Message:
+        source = None
+        if line.source is not None:
+            source = decode(line.source)
+        if line.command != 409:
+            raise ValueError("incorrect verb")
+        if not (len(line.arguments) == 2):
+            raise ValueError("wrong number of arguments")
+        i = 0
+        target = decode(line.arguments[i])
+        i += 1
+        # line.arguments[i]: 'No origin specified'
+        i += 1
+        assert i == len(line.arguments)
+        return cls(source=source, target=target)
+
     def to_line(self, encode: typing.Callable[[str], bytes] = lambda s: s.encode("utf-8")) -> Line:
         source = None
         if self.source is not None:
@@ -6192,6 +6300,23 @@ class NoRecipient(Message):
 
     def __repr__(self) -> str:
         return 'NoRecipient(source={}, target={})'.format(repr(self.source), repr(self.target))
+
+    @classmethod
+    def from_line(cls, line: Line, decode: typing.Callable[[bytes], str] = lambda b: b.decode("utf-8")) -> Message:
+        source = None
+        if line.source is not None:
+            source = decode(line.source)
+        if line.command != 411:
+            raise ValueError("incorrect verb")
+        if not (len(line.arguments) == 2):
+            raise ValueError("wrong number of arguments")
+        i = 0
+        target = decode(line.arguments[i])
+        i += 1
+        # line.arguments[i]: 'No recipient given'
+        i += 1
+        assert i == len(line.arguments)
+        return cls(source=source, target=target)
 
     def to_line(self, encode: typing.Callable[[str], bytes] = lambda s: s.encode("utf-8")) -> Line:
         source = None
@@ -6217,6 +6342,23 @@ class NoTextToSend(Message):
     def __repr__(self) -> str:
         return 'NoTextToSend(source={}, target={})'.format(repr(self.source), repr(self.target))
 
+    @classmethod
+    def from_line(cls, line: Line, decode: typing.Callable[[bytes], str] = lambda b: b.decode("utf-8")) -> Message:
+        source = None
+        if line.source is not None:
+            source = decode(line.source)
+        if line.command != 412:
+            raise ValueError("incorrect verb")
+        if not (len(line.arguments) == 2):
+            raise ValueError("wrong number of arguments")
+        i = 0
+        target = decode(line.arguments[i])
+        i += 1
+        # line.arguments[i]: 'No text to send'
+        i += 1
+        assert i == len(line.arguments)
+        return cls(source=source, target=target)
+
     def to_line(self, encode: typing.Callable[[str], bytes] = lambda s: s.encode("utf-8")) -> Line:
         source = None
         if self.source is not None:
@@ -6241,6 +6383,25 @@ class NoTopLevel(Message):
 
     def __repr__(self) -> str:
         return 'NoTopLevel(source={}, target={}, mask={})'.format(repr(self.source), repr(self.target), repr(self.mask))
+
+    @classmethod
+    def from_line(cls, line: Line, decode: typing.Callable[[bytes], str] = lambda b: b.decode("utf-8")) -> Message:
+        source = None
+        if line.source is not None:
+            source = decode(line.source)
+        if line.command != 413:
+            raise ValueError("incorrect verb")
+        if not (len(line.arguments) == 3):
+            raise ValueError("wrong number of arguments")
+        i = 0
+        target = decode(line.arguments[i])
+        i += 1
+        mask = decode(line.arguments[i])
+        i += 1
+        # line.arguments[i]: 'No toplevel domain specified'
+        i += 1
+        assert i == len(line.arguments)
+        return cls(source=source, target=target, mask=mask)
 
     def to_line(self, encode: typing.Callable[[str], bytes] = lambda s: s.encode("utf-8")) -> Line:
         source = None
@@ -6268,6 +6429,25 @@ class WildTopLevel(Message):
     def __repr__(self) -> str:
         return 'WildTopLevel(source={}, target={}, mask={})'.format(repr(self.source), repr(self.target), repr(self.mask))
 
+    @classmethod
+    def from_line(cls, line: Line, decode: typing.Callable[[bytes], str] = lambda b: b.decode("utf-8")) -> Message:
+        source = None
+        if line.source is not None:
+            source = decode(line.source)
+        if line.command != 414:
+            raise ValueError("incorrect verb")
+        if not (len(line.arguments) == 3):
+            raise ValueError("wrong number of arguments")
+        i = 0
+        target = decode(line.arguments[i])
+        i += 1
+        mask = decode(line.arguments[i])
+        i += 1
+        # line.arguments[i]: 'Wildcard in toplevel domain'
+        i += 1
+        assert i == len(line.arguments)
+        return cls(source=source, target=target, mask=mask)
+
     def to_line(self, encode: typing.Callable[[str], bytes] = lambda s: s.encode("utf-8")) -> Line:
         source = None
         if self.source is not None:
@@ -6293,6 +6473,25 @@ class BadMask(Message):
 
     def __repr__(self) -> str:
         return 'BadMask(source={}, target={}, mask={})'.format(repr(self.source), repr(self.target), repr(self.mask))
+
+    @classmethod
+    def from_line(cls, line: Line, decode: typing.Callable[[bytes], str] = lambda b: b.decode("utf-8")) -> Message:
+        source = None
+        if line.source is not None:
+            source = decode(line.source)
+        if line.command != 415:
+            raise ValueError("incorrect verb")
+        if not (len(line.arguments) == 3):
+            raise ValueError("wrong number of arguments")
+        i = 0
+        target = decode(line.arguments[i])
+        i += 1
+        mask = decode(line.arguments[i])
+        i += 1
+        # line.arguments[i]: 'Bad Server/host mask'
+        i += 1
+        assert i == len(line.arguments)
+        return cls(source=source, target=target, mask=mask)
 
     def to_line(self, encode: typing.Callable[[str], bytes] = lambda s: s.encode("utf-8")) -> Line:
         source = None
@@ -6320,6 +6519,25 @@ class UnknownCommand(Message):
     def __repr__(self) -> str:
         return 'UnknownCommand(source={}, target={}, command={})'.format(repr(self.source), repr(self.target), repr(self.command))
 
+    @classmethod
+    def from_line(cls, line: Line, decode: typing.Callable[[bytes], str] = lambda b: b.decode("utf-8")) -> Message:
+        source = None
+        if line.source is not None:
+            source = decode(line.source)
+        if line.command != 421:
+            raise ValueError("incorrect verb")
+        if not (len(line.arguments) == 3):
+            raise ValueError("wrong number of arguments")
+        i = 0
+        target = decode(line.arguments[i])
+        i += 1
+        command = decode(line.arguments[i])
+        i += 1
+        # line.arguments[i]: 'Unknown command'
+        i += 1
+        assert i == len(line.arguments)
+        return cls(source=source, target=target, command=command)
+
     def to_line(self, encode: typing.Callable[[str], bytes] = lambda s: s.encode("utf-8")) -> Line:
         source = None
         if self.source is not None:
@@ -6345,6 +6563,23 @@ class NoMotd(Message):
     def __repr__(self) -> str:
         return 'NoMotd(source={}, target={})'.format(repr(self.source), repr(self.target))
 
+    @classmethod
+    def from_line(cls, line: Line, decode: typing.Callable[[bytes], str] = lambda b: b.decode("utf-8")) -> Message:
+        source = None
+        if line.source is not None:
+            source = decode(line.source)
+        if line.command != 422:
+            raise ValueError("incorrect verb")
+        if not (len(line.arguments) == 2):
+            raise ValueError("wrong number of arguments")
+        i = 0
+        target = decode(line.arguments[i])
+        i += 1
+        # line.arguments[i]: 'MOTD File is missing'
+        i += 1
+        assert i == len(line.arguments)
+        return cls(source=source, target=target)
+
     def to_line(self, encode: typing.Callable[[str], bytes] = lambda s: s.encode("utf-8")) -> Line:
         source = None
         if self.source is not None:
@@ -6369,6 +6604,25 @@ class NoAdminInfo(Message):
 
     def __repr__(self) -> str:
         return 'NoAdminInfo(source={}, target={}, server={})'.format(repr(self.source), repr(self.target), repr(self.server))
+
+    @classmethod
+    def from_line(cls, line: Line, decode: typing.Callable[[bytes], str] = lambda b: b.decode("utf-8")) -> Message:
+        source = None
+        if line.source is not None:
+            source = decode(line.source)
+        if line.command != 423:
+            raise ValueError("incorrect verb")
+        if not (len(line.arguments) == 3):
+            raise ValueError("wrong number of arguments")
+        i = 0
+        target = decode(line.arguments[i])
+        i += 1
+        server = decode(line.arguments[i])
+        i += 1
+        # line.arguments[i]: 'No administrative info available'
+        i += 1
+        assert i == len(line.arguments)
+        return cls(source=source, target=target, server=server)
 
     def to_line(self, encode: typing.Callable[[str], bytes] = lambda s: s.encode("utf-8")) -> Line:
         source = None
@@ -6396,6 +6650,23 @@ class FileError(Message):
     def __repr__(self) -> str:
         return 'FileError(source={}, target={}, message={})'.format(repr(self.source), repr(self.target), repr(self.message))
 
+    @classmethod
+    def from_line(cls, line: Line, decode: typing.Callable[[bytes], str] = lambda b: b.decode("utf-8")) -> Message:
+        source = None
+        if line.source is not None:
+            source = decode(line.source)
+        if line.command != 424:
+            raise ValueError("incorrect verb")
+        if not (len(line.arguments) == 2):
+            raise ValueError("wrong number of arguments")
+        i = 0
+        target = decode(line.arguments[i])
+        i += 1
+        message = decode(line.arguments[i])
+        i += 1
+        assert i == len(line.arguments)
+        return cls(source=source, target=target, message=message)
+
     def to_line(self, encode: typing.Callable[[str], bytes] = lambda s: s.encode("utf-8")) -> Line:
         source = None
         if self.source is not None:
@@ -6419,6 +6690,23 @@ class NoNicknameGiven(Message):
 
     def __repr__(self) -> str:
         return 'NoNicknameGiven(source={}, target={})'.format(repr(self.source), repr(self.target))
+
+    @classmethod
+    def from_line(cls, line: Line, decode: typing.Callable[[bytes], str] = lambda b: b.decode("utf-8")) -> Message:
+        source = None
+        if line.source is not None:
+            source = decode(line.source)
+        if line.command != 431:
+            raise ValueError("incorrect verb")
+        if not (len(line.arguments) == 2):
+            raise ValueError("wrong number of arguments")
+        i = 0
+        target = decode(line.arguments[i])
+        i += 1
+        # line.arguments[i]: 'No nickname given'
+        i += 1
+        assert i == len(line.arguments)
+        return cls(source=source, target=target)
 
     def to_line(self, encode: typing.Callable[[str], bytes] = lambda s: s.encode("utf-8")) -> Line:
         source = None
@@ -6445,6 +6733,25 @@ class ErroneusNickname(Message):
     def __repr__(self) -> str:
         return 'ErroneusNickname(source={}, target={}, nickname={})'.format(repr(self.source), repr(self.target), repr(self.nickname))
 
+    @classmethod
+    def from_line(cls, line: Line, decode: typing.Callable[[bytes], str] = lambda b: b.decode("utf-8")) -> Message:
+        source = None
+        if line.source is not None:
+            source = decode(line.source)
+        if line.command != 432:
+            raise ValueError("incorrect verb")
+        if not (len(line.arguments) == 3):
+            raise ValueError("wrong number of arguments")
+        i = 0
+        target = decode(line.arguments[i])
+        i += 1
+        nickname = decode(line.arguments[i])
+        i += 1
+        # line.arguments[i]: 'Erroneous nickname'
+        i += 1
+        assert i == len(line.arguments)
+        return cls(source=source, target=target, nickname=nickname)
+
     def to_line(self, encode: typing.Callable[[str], bytes] = lambda s: s.encode("utf-8")) -> Line:
         source = None
         if self.source is not None:
@@ -6470,6 +6777,25 @@ class NicknameInUse(Message):
 
     def __repr__(self) -> str:
         return 'NicknameInUse(source={}, target={}, nickname={})'.format(repr(self.source), repr(self.target), repr(self.nickname))
+
+    @classmethod
+    def from_line(cls, line: Line, decode: typing.Callable[[bytes], str] = lambda b: b.decode("utf-8")) -> Message:
+        source = None
+        if line.source is not None:
+            source = decode(line.source)
+        if line.command != 433:
+            raise ValueError("incorrect verb")
+        if not (len(line.arguments) == 3):
+            raise ValueError("wrong number of arguments")
+        i = 0
+        target = decode(line.arguments[i])
+        i += 1
+        nickname = decode(line.arguments[i])
+        i += 1
+        # line.arguments[i]: 'Nickname is already in use'
+        i += 1
+        assert i == len(line.arguments)
+        return cls(source=source, target=target, nickname=nickname)
 
     def to_line(self, encode: typing.Callable[[str], bytes] = lambda s: s.encode("utf-8")) -> Line:
         source = None
@@ -6498,6 +6824,25 @@ class NickCollision(Message):
     def __repr__(self) -> str:
         return 'NickCollision(source={}, target={}, nickname={}, message={})'.format(repr(self.source), repr(self.target), repr(self.nickname), repr(self.message))
 
+    @classmethod
+    def from_line(cls, line: Line, decode: typing.Callable[[bytes], str] = lambda b: b.decode("utf-8")) -> Message:
+        source = None
+        if line.source is not None:
+            source = decode(line.source)
+        if line.command != 436:
+            raise ValueError("incorrect verb")
+        if not (len(line.arguments) == 3):
+            raise ValueError("wrong number of arguments")
+        i = 0
+        target = decode(line.arguments[i])
+        i += 1
+        nickname = decode(line.arguments[i])
+        i += 1
+        message = decode(line.arguments[i])
+        i += 1
+        assert i == len(line.arguments)
+        return cls(source=source, target=target, nickname=nickname, message=message)
+
     def to_line(self, encode: typing.Callable[[str], bytes] = lambda s: s.encode("utf-8")) -> Line:
         source = None
         if self.source is not None:
@@ -6523,6 +6868,25 @@ class UnavailResource(Message):
 
     def __repr__(self) -> str:
         return 'UnavailResource(source={}, target={}, name={})'.format(repr(self.source), repr(self.target), repr(self.name))
+
+    @classmethod
+    def from_line(cls, line: Line, decode: typing.Callable[[bytes], str] = lambda b: b.decode("utf-8")) -> Message:
+        source = None
+        if line.source is not None:
+            source = decode(line.source)
+        if line.command != 437:
+            raise ValueError("incorrect verb")
+        if not (len(line.arguments) == 3):
+            raise ValueError("wrong number of arguments")
+        i = 0
+        target = decode(line.arguments[i])
+        i += 1
+        name = decode(line.arguments[i])
+        i += 1
+        # line.arguments[i]: 'Nick/channel is temporarily unavailable'
+        i += 1
+        assert i == len(line.arguments)
+        return cls(source=source, target=target, name=name)
 
     def to_line(self, encode: typing.Callable[[str], bytes] = lambda s: s.encode("utf-8")) -> Line:
         source = None
@@ -6551,6 +6915,27 @@ class UserNotInChannel(Message):
     def __repr__(self) -> str:
         return 'UserNotInChannel(source={}, target={}, nickname={}, channel={})'.format(repr(self.source), repr(self.target), repr(self.nickname), repr(self.channel))
 
+    @classmethod
+    def from_line(cls, line: Line, decode: typing.Callable[[bytes], str] = lambda b: b.decode("utf-8")) -> Message:
+        source = None
+        if line.source is not None:
+            source = decode(line.source)
+        if line.command != 441:
+            raise ValueError("incorrect verb")
+        if not (len(line.arguments) == 4):
+            raise ValueError("wrong number of arguments")
+        i = 0
+        target = decode(line.arguments[i])
+        i += 1
+        nickname = decode(line.arguments[i])
+        i += 1
+        channel = decode(line.arguments[i])
+        i += 1
+        # line.arguments[i]: "They aren't on that channel"
+        i += 1
+        assert i == len(line.arguments)
+        return cls(source=source, target=target, nickname=nickname, channel=channel)
+
     def to_line(self, encode: typing.Callable[[str], bytes] = lambda s: s.encode("utf-8")) -> Line:
         source = None
         if self.source is not None:
@@ -6577,6 +6962,25 @@ class NotOnChannel(Message):
 
     def __repr__(self) -> str:
         return 'NotOnChannel(source={}, target={}, channel={})'.format(repr(self.source), repr(self.target), repr(self.channel))
+
+    @classmethod
+    def from_line(cls, line: Line, decode: typing.Callable[[bytes], str] = lambda b: b.decode("utf-8")) -> Message:
+        source = None
+        if line.source is not None:
+            source = decode(line.source)
+        if line.command != 442:
+            raise ValueError("incorrect verb")
+        if not (len(line.arguments) == 3):
+            raise ValueError("wrong number of arguments")
+        i = 0
+        target = decode(line.arguments[i])
+        i += 1
+        channel = decode(line.arguments[i])
+        i += 1
+        # line.arguments[i]: "You're not on that channel"
+        i += 1
+        assert i == len(line.arguments)
+        return cls(source=source, target=target, channel=channel)
 
     def to_line(self, encode: typing.Callable[[str], bytes] = lambda s: s.encode("utf-8")) -> Line:
         source = None
@@ -6605,6 +7009,27 @@ class UserOnChannel(Message):
     def __repr__(self) -> str:
         return 'UserOnChannel(source={}, target={}, user={}, channel={})'.format(repr(self.source), repr(self.target), repr(self.user), repr(self.channel))
 
+    @classmethod
+    def from_line(cls, line: Line, decode: typing.Callable[[bytes], str] = lambda b: b.decode("utf-8")) -> Message:
+        source = None
+        if line.source is not None:
+            source = decode(line.source)
+        if line.command != 443:
+            raise ValueError("incorrect verb")
+        if not (len(line.arguments) == 4):
+            raise ValueError("wrong number of arguments")
+        i = 0
+        target = decode(line.arguments[i])
+        i += 1
+        user = decode(line.arguments[i])
+        i += 1
+        channel = decode(line.arguments[i])
+        i += 1
+        # line.arguments[i]: 'is already on channel'
+        i += 1
+        assert i == len(line.arguments)
+        return cls(source=source, target=target, user=user, channel=channel)
+
     def to_line(self, encode: typing.Callable[[str], bytes] = lambda s: s.encode("utf-8")) -> Line:
         source = None
         if self.source is not None:
@@ -6632,6 +7057,25 @@ class NoLogin(Message):
     def __repr__(self) -> str:
         return 'NoLogin(source={}, target={}, user={})'.format(repr(self.source), repr(self.target), repr(self.user))
 
+    @classmethod
+    def from_line(cls, line: Line, decode: typing.Callable[[bytes], str] = lambda b: b.decode("utf-8")) -> Message:
+        source = None
+        if line.source is not None:
+            source = decode(line.source)
+        if line.command != 444:
+            raise ValueError("incorrect verb")
+        if not (len(line.arguments) == 3):
+            raise ValueError("wrong number of arguments")
+        i = 0
+        target = decode(line.arguments[i])
+        i += 1
+        user = decode(line.arguments[i])
+        i += 1
+        # line.arguments[i]: 'User not logged in'
+        i += 1
+        assert i == len(line.arguments)
+        return cls(source=source, target=target, user=user)
+
     def to_line(self, encode: typing.Callable[[str], bytes] = lambda s: s.encode("utf-8")) -> Line:
         source = None
         if self.source is not None:
@@ -6657,6 +7101,23 @@ class SummonDisabled(Message):
     def __repr__(self) -> str:
         return 'SummonDisabled(source={}, target={})'.format(repr(self.source), repr(self.target))
 
+    @classmethod
+    def from_line(cls, line: Line, decode: typing.Callable[[bytes], str] = lambda b: b.decode("utf-8")) -> Message:
+        source = None
+        if line.source is not None:
+            source = decode(line.source)
+        if line.command != 445:
+            raise ValueError("incorrect verb")
+        if not (len(line.arguments) == 2):
+            raise ValueError("wrong number of arguments")
+        i = 0
+        target = decode(line.arguments[i])
+        i += 1
+        # line.arguments[i]: 'SUMMON has been disabled'
+        i += 1
+        assert i == len(line.arguments)
+        return cls(source=source, target=target)
+
     def to_line(self, encode: typing.Callable[[str], bytes] = lambda s: s.encode("utf-8")) -> Line:
         source = None
         if self.source is not None:
@@ -6681,6 +7142,23 @@ class UsersDisabled(Message):
     def __repr__(self) -> str:
         return 'UsersDisabled(source={}, target={})'.format(repr(self.source), repr(self.target))
 
+    @classmethod
+    def from_line(cls, line: Line, decode: typing.Callable[[bytes], str] = lambda b: b.decode("utf-8")) -> Message:
+        source = None
+        if line.source is not None:
+            source = decode(line.source)
+        if line.command != 446:
+            raise ValueError("incorrect verb")
+        if not (len(line.arguments) == 2):
+            raise ValueError("wrong number of arguments")
+        i = 0
+        target = decode(line.arguments[i])
+        i += 1
+        # line.arguments[i]: 'USERS has been disabled'
+        i += 1
+        assert i == len(line.arguments)
+        return cls(source=source, target=target)
+
     def to_line(self, encode: typing.Callable[[str], bytes] = lambda s: s.encode("utf-8")) -> Line:
         source = None
         if self.source is not None:
@@ -6704,6 +7182,23 @@ class NotRegistered(Message):
 
     def __repr__(self) -> str:
         return 'NotRegistered(source={}, target={})'.format(repr(self.source), repr(self.target))
+
+    @classmethod
+    def from_line(cls, line: Line, decode: typing.Callable[[bytes], str] = lambda b: b.decode("utf-8")) -> Message:
+        source = None
+        if line.source is not None:
+            source = decode(line.source)
+        if line.command != 451:
+            raise ValueError("incorrect verb")
+        if not (len(line.arguments) == 2):
+            raise ValueError("wrong number of arguments")
+        i = 0
+        target = decode(line.arguments[i])
+        i += 1
+        # line.arguments[i]: 'You have not registered'
+        i += 1
+        assert i == len(line.arguments)
+        return cls(source=source, target=target)
 
     def to_line(self, encode: typing.Callable[[str], bytes] = lambda s: s.encode("utf-8")) -> Line:
         source = None
@@ -6730,6 +7225,25 @@ class NeedMoreParams(Message):
     def __repr__(self) -> str:
         return 'NeedMoreParams(source={}, target={}, command={})'.format(repr(self.source), repr(self.target), repr(self.command))
 
+    @classmethod
+    def from_line(cls, line: Line, decode: typing.Callable[[bytes], str] = lambda b: b.decode("utf-8")) -> Message:
+        source = None
+        if line.source is not None:
+            source = decode(line.source)
+        if line.command != 461:
+            raise ValueError("incorrect verb")
+        if not (len(line.arguments) == 3):
+            raise ValueError("wrong number of arguments")
+        i = 0
+        target = decode(line.arguments[i])
+        i += 1
+        command = decode(line.arguments[i])
+        i += 1
+        # line.arguments[i]: 'Not enough parameters'
+        i += 1
+        assert i == len(line.arguments)
+        return cls(source=source, target=target, command=command)
+
     def to_line(self, encode: typing.Callable[[str], bytes] = lambda s: s.encode("utf-8")) -> Line:
         source = None
         if self.source is not None:
@@ -6755,6 +7269,23 @@ class AlreadyRegistered(Message):
     def __repr__(self) -> str:
         return 'AlreadyRegistered(source={}, target={})'.format(repr(self.source), repr(self.target))
 
+    @classmethod
+    def from_line(cls, line: Line, decode: typing.Callable[[bytes], str] = lambda b: b.decode("utf-8")) -> Message:
+        source = None
+        if line.source is not None:
+            source = decode(line.source)
+        if line.command != 462:
+            raise ValueError("incorrect verb")
+        if not (len(line.arguments) == 2):
+            raise ValueError("wrong number of arguments")
+        i = 0
+        target = decode(line.arguments[i])
+        i += 1
+        # line.arguments[i]: 'Unauthorized command (already registered)'
+        i += 1
+        assert i == len(line.arguments)
+        return cls(source=source, target=target)
+
     def to_line(self, encode: typing.Callable[[str], bytes] = lambda s: s.encode("utf-8")) -> Line:
         source = None
         if self.source is not None:
@@ -6778,6 +7309,23 @@ class NoPermForHost(Message):
 
     def __repr__(self) -> str:
         return 'NoPermForHost(source={}, target={})'.format(repr(self.source), repr(self.target))
+
+    @classmethod
+    def from_line(cls, line: Line, decode: typing.Callable[[bytes], str] = lambda b: b.decode("utf-8")) -> Message:
+        source = None
+        if line.source is not None:
+            source = decode(line.source)
+        if line.command != 463:
+            raise ValueError("incorrect verb")
+        if not (len(line.arguments) == 2):
+            raise ValueError("wrong number of arguments")
+        i = 0
+        target = decode(line.arguments[i])
+        i += 1
+        # line.arguments[i]: "Your host isn't among the privileged"
+        i += 1
+        assert i == len(line.arguments)
+        return cls(source=source, target=target)
 
     def to_line(self, encode: typing.Callable[[str], bytes] = lambda s: s.encode("utf-8")) -> Line:
         source = None
@@ -6803,6 +7351,23 @@ class PasswordMismatch(Message):
     def __repr__(self) -> str:
         return 'PasswordMismatch(source={}, target={})'.format(repr(self.source), repr(self.target))
 
+    @classmethod
+    def from_line(cls, line: Line, decode: typing.Callable[[bytes], str] = lambda b: b.decode("utf-8")) -> Message:
+        source = None
+        if line.source is not None:
+            source = decode(line.source)
+        if line.command != 464:
+            raise ValueError("incorrect verb")
+        if not (len(line.arguments) == 2):
+            raise ValueError("wrong number of arguments")
+        i = 0
+        target = decode(line.arguments[i])
+        i += 1
+        # line.arguments[i]: 'Password incorrect'
+        i += 1
+        assert i == len(line.arguments)
+        return cls(source=source, target=target)
+
     def to_line(self, encode: typing.Callable[[str], bytes] = lambda s: s.encode("utf-8")) -> Line:
         source = None
         if self.source is not None:
@@ -6826,6 +7391,23 @@ class YoureBannedCreep(Message):
 
     def __repr__(self) -> str:
         return 'YoureBannedCreep(source={}, target={})'.format(repr(self.source), repr(self.target))
+
+    @classmethod
+    def from_line(cls, line: Line, decode: typing.Callable[[bytes], str] = lambda b: b.decode("utf-8")) -> Message:
+        source = None
+        if line.source is not None:
+            source = decode(line.source)
+        if line.command != 465:
+            raise ValueError("incorrect verb")
+        if not (len(line.arguments) == 2):
+            raise ValueError("wrong number of arguments")
+        i = 0
+        target = decode(line.arguments[i])
+        i += 1
+        # line.arguments[i]: 'You are banned from this server'
+        i += 1
+        assert i == len(line.arguments)
+        return cls(source=source, target=target)
 
     def to_line(self, encode: typing.Callable[[str], bytes] = lambda s: s.encode("utf-8")) -> Line:
         source = None
@@ -6851,6 +7433,21 @@ class YouWillBeBanned(Message):
     def __repr__(self) -> str:
         return 'YouWillBeBanned(source={}, target={})'.format(repr(self.source), repr(self.target))
 
+    @classmethod
+    def from_line(cls, line: Line, decode: typing.Callable[[bytes], str] = lambda b: b.decode("utf-8")) -> Message:
+        source = None
+        if line.source is not None:
+            source = decode(line.source)
+        if line.command != 466:
+            raise ValueError("incorrect verb")
+        if not (len(line.arguments) == 1):
+            raise ValueError("wrong number of arguments")
+        i = 0
+        target = decode(line.arguments[i])
+        i += 1
+        assert i == len(line.arguments)
+        return cls(source=source, target=target)
+
     def to_line(self, encode: typing.Callable[[str], bytes] = lambda s: s.encode("utf-8")) -> Line:
         source = None
         if self.source is not None:
@@ -6874,6 +7471,25 @@ class KeySet(Message):
 
     def __repr__(self) -> str:
         return 'KeySet(source={}, target={}, channel={})'.format(repr(self.source), repr(self.target), repr(self.channel))
+
+    @classmethod
+    def from_line(cls, line: Line, decode: typing.Callable[[bytes], str] = lambda b: b.decode("utf-8")) -> Message:
+        source = None
+        if line.source is not None:
+            source = decode(line.source)
+        if line.command != 467:
+            raise ValueError("incorrect verb")
+        if not (len(line.arguments) == 3):
+            raise ValueError("wrong number of arguments")
+        i = 0
+        target = decode(line.arguments[i])
+        i += 1
+        channel = decode(line.arguments[i])
+        i += 1
+        # line.arguments[i]: 'Channel key already set'
+        i += 1
+        assert i == len(line.arguments)
+        return cls(source=source, target=target, channel=channel)
 
     def to_line(self, encode: typing.Callable[[str], bytes] = lambda s: s.encode("utf-8")) -> Line:
         source = None
@@ -6901,6 +7517,25 @@ class ChannelIsFull(Message):
     def __repr__(self) -> str:
         return 'ChannelIsFull(source={}, target={}, channel={})'.format(repr(self.source), repr(self.target), repr(self.channel))
 
+    @classmethod
+    def from_line(cls, line: Line, decode: typing.Callable[[bytes], str] = lambda b: b.decode("utf-8")) -> Message:
+        source = None
+        if line.source is not None:
+            source = decode(line.source)
+        if line.command != 471:
+            raise ValueError("incorrect verb")
+        if not (len(line.arguments) == 3):
+            raise ValueError("wrong number of arguments")
+        i = 0
+        target = decode(line.arguments[i])
+        i += 1
+        channel = decode(line.arguments[i])
+        i += 1
+        # line.arguments[i]: 'Cannot join channel (+l)'
+        i += 1
+        assert i == len(line.arguments)
+        return cls(source=source, target=target, channel=channel)
+
     def to_line(self, encode: typing.Callable[[str], bytes] = lambda s: s.encode("utf-8")) -> Line:
         source = None
         if self.source is not None:
@@ -6926,6 +7561,25 @@ class UnknownMode(Message):
 
     def __repr__(self) -> str:
         return 'UnknownMode(source={}, target={}, char={})'.format(repr(self.source), repr(self.target), repr(self.char))
+
+    @classmethod
+    def from_line(cls, line: Line, decode: typing.Callable[[bytes], str] = lambda b: b.decode("utf-8")) -> Message:
+        source = None
+        if line.source is not None:
+            source = decode(line.source)
+        if line.command != 472:
+            raise ValueError("incorrect verb")
+        if not (len(line.arguments) == 3):
+            raise ValueError("wrong number of arguments")
+        i = 0
+        target = decode(line.arguments[i])
+        i += 1
+        char = decode(line.arguments[i])
+        i += 1
+        # line.arguments[i]: 'is unknown mode char to me'
+        i += 1
+        assert i == len(line.arguments)
+        return cls(source=source, target=target, char=char)
 
     def to_line(self, encode: typing.Callable[[str], bytes] = lambda s: s.encode("utf-8")) -> Line:
         source = None
@@ -6953,6 +7607,25 @@ class InviteOnlyChan(Message):
     def __repr__(self) -> str:
         return 'InviteOnlyChan(source={}, target={}, channel={})'.format(repr(self.source), repr(self.target), repr(self.channel))
 
+    @classmethod
+    def from_line(cls, line: Line, decode: typing.Callable[[bytes], str] = lambda b: b.decode("utf-8")) -> Message:
+        source = None
+        if line.source is not None:
+            source = decode(line.source)
+        if line.command != 473:
+            raise ValueError("incorrect verb")
+        if not (len(line.arguments) == 3):
+            raise ValueError("wrong number of arguments")
+        i = 0
+        target = decode(line.arguments[i])
+        i += 1
+        channel = decode(line.arguments[i])
+        i += 1
+        # line.arguments[i]: 'Cannot join channel (+i)'
+        i += 1
+        assert i == len(line.arguments)
+        return cls(source=source, target=target, channel=channel)
+
     def to_line(self, encode: typing.Callable[[str], bytes] = lambda s: s.encode("utf-8")) -> Line:
         source = None
         if self.source is not None:
@@ -6978,6 +7651,25 @@ class BannedFromChan(Message):
 
     def __repr__(self) -> str:
         return 'BannedFromChan(source={}, target={}, channel={})'.format(repr(self.source), repr(self.target), repr(self.channel))
+
+    @classmethod
+    def from_line(cls, line: Line, decode: typing.Callable[[bytes], str] = lambda b: b.decode("utf-8")) -> Message:
+        source = None
+        if line.source is not None:
+            source = decode(line.source)
+        if line.command != 474:
+            raise ValueError("incorrect verb")
+        if not (len(line.arguments) == 3):
+            raise ValueError("wrong number of arguments")
+        i = 0
+        target = decode(line.arguments[i])
+        i += 1
+        channel = decode(line.arguments[i])
+        i += 1
+        # line.arguments[i]: 'Cannot join channel (+b)'
+        i += 1
+        assert i == len(line.arguments)
+        return cls(source=source, target=target, channel=channel)
 
     def to_line(self, encode: typing.Callable[[str], bytes] = lambda s: s.encode("utf-8")) -> Line:
         source = None
@@ -7005,6 +7697,25 @@ class BadChannelKey(Message):
     def __repr__(self) -> str:
         return 'BadChannelKey(source={}, target={}, channel={})'.format(repr(self.source), repr(self.target), repr(self.channel))
 
+    @classmethod
+    def from_line(cls, line: Line, decode: typing.Callable[[bytes], str] = lambda b: b.decode("utf-8")) -> Message:
+        source = None
+        if line.source is not None:
+            source = decode(line.source)
+        if line.command != 475:
+            raise ValueError("incorrect verb")
+        if not (len(line.arguments) == 3):
+            raise ValueError("wrong number of arguments")
+        i = 0
+        target = decode(line.arguments[i])
+        i += 1
+        channel = decode(line.arguments[i])
+        i += 1
+        # line.arguments[i]: 'Cannot join channel (+k)'
+        i += 1
+        assert i == len(line.arguments)
+        return cls(source=source, target=target, channel=channel)
+
     def to_line(self, encode: typing.Callable[[str], bytes] = lambda s: s.encode("utf-8")) -> Line:
         source = None
         if self.source is not None:
@@ -7031,6 +7742,25 @@ class BadChanMask(Message):
     def __repr__(self) -> str:
         return 'BadChanMask(source={}, target={}, channel={})'.format(repr(self.source), repr(self.target), repr(self.channel))
 
+    @classmethod
+    def from_line(cls, line: Line, decode: typing.Callable[[bytes], str] = lambda b: b.decode("utf-8")) -> Message:
+        source = None
+        if line.source is not None:
+            source = decode(line.source)
+        if line.command != 476:
+            raise ValueError("incorrect verb")
+        if not (len(line.arguments) == 3):
+            raise ValueError("wrong number of arguments")
+        i = 0
+        target = decode(line.arguments[i])
+        i += 1
+        channel = decode(line.arguments[i])
+        i += 1
+        # line.arguments[i]: 'Bad Channel Mask'
+        i += 1
+        assert i == len(line.arguments)
+        return cls(source=source, target=target, channel=channel)
+
     def to_line(self, encode: typing.Callable[[str], bytes] = lambda s: s.encode("utf-8")) -> Line:
         source = None
         if self.source is not None:
@@ -7056,6 +7786,25 @@ class NoChanModes(Message):
 
     def __repr__(self) -> str:
         return 'NoChanModes(source={}, target={}, channel={})'.format(repr(self.source), repr(self.target), repr(self.channel))
+
+    @classmethod
+    def from_line(cls, line: Line, decode: typing.Callable[[bytes], str] = lambda b: b.decode("utf-8")) -> Message:
+        source = None
+        if line.source is not None:
+            source = decode(line.source)
+        if line.command != 477:
+            raise ValueError("incorrect verb")
+        if not (len(line.arguments) == 3):
+            raise ValueError("wrong number of arguments")
+        i = 0
+        target = decode(line.arguments[i])
+        i += 1
+        channel = decode(line.arguments[i])
+        i += 1
+        # line.arguments[i]: "Channel doesn't support modes"
+        i += 1
+        assert i == len(line.arguments)
+        return cls(source=source, target=target, channel=channel)
 
     def to_line(self, encode: typing.Callable[[str], bytes] = lambda s: s.encode("utf-8")) -> Line:
         source = None
@@ -7084,6 +7833,27 @@ class BanListFull(Message):
     def __repr__(self) -> str:
         return 'BanListFull(source={}, target={}, channel={}, char={})'.format(repr(self.source), repr(self.target), repr(self.channel), repr(self.char))
 
+    @classmethod
+    def from_line(cls, line: Line, decode: typing.Callable[[bytes], str] = lambda b: b.decode("utf-8")) -> Message:
+        source = None
+        if line.source is not None:
+            source = decode(line.source)
+        if line.command != 478:
+            raise ValueError("incorrect verb")
+        if not (len(line.arguments) == 4):
+            raise ValueError("wrong number of arguments")
+        i = 0
+        target = decode(line.arguments[i])
+        i += 1
+        channel = decode(line.arguments[i])
+        i += 1
+        char = decode(line.arguments[i])
+        i += 1
+        # line.arguments[i]: 'Channel list is full'
+        i += 1
+        assert i == len(line.arguments)
+        return cls(source=source, target=target, channel=channel, char=char)
+
     def to_line(self, encode: typing.Callable[[str], bytes] = lambda s: s.encode("utf-8")) -> Line:
         source = None
         if self.source is not None:
@@ -7110,6 +7880,23 @@ class NoPrivileges(Message):
     def __repr__(self) -> str:
         return 'NoPrivileges(source={}, target={})'.format(repr(self.source), repr(self.target))
 
+    @classmethod
+    def from_line(cls, line: Line, decode: typing.Callable[[bytes], str] = lambda b: b.decode("utf-8")) -> Message:
+        source = None
+        if line.source is not None:
+            source = decode(line.source)
+        if line.command != 481:
+            raise ValueError("incorrect verb")
+        if not (len(line.arguments) == 2):
+            raise ValueError("wrong number of arguments")
+        i = 0
+        target = decode(line.arguments[i])
+        i += 1
+        # line.arguments[i]: "Permission Denied- You're not an IRC operator"
+        i += 1
+        assert i == len(line.arguments)
+        return cls(source=source, target=target)
+
     def to_line(self, encode: typing.Callable[[str], bytes] = lambda s: s.encode("utf-8")) -> Line:
         source = None
         if self.source is not None:
@@ -7134,6 +7921,25 @@ class ChanOpPrivsNeeded(Message):
 
     def __repr__(self) -> str:
         return 'ChanOpPrivsNeeded(source={}, target={}, channel={})'.format(repr(self.source), repr(self.target), repr(self.channel))
+
+    @classmethod
+    def from_line(cls, line: Line, decode: typing.Callable[[bytes], str] = lambda b: b.decode("utf-8")) -> Message:
+        source = None
+        if line.source is not None:
+            source = decode(line.source)
+        if line.command != 482:
+            raise ValueError("incorrect verb")
+        if not (len(line.arguments) == 3):
+            raise ValueError("wrong number of arguments")
+        i = 0
+        target = decode(line.arguments[i])
+        i += 1
+        channel = decode(line.arguments[i])
+        i += 1
+        # line.arguments[i]: "You're not channel operator"
+        i += 1
+        assert i == len(line.arguments)
+        return cls(source=source, target=target, channel=channel)
 
     def to_line(self, encode: typing.Callable[[str], bytes] = lambda s: s.encode("utf-8")) -> Line:
         source = None
@@ -7160,6 +7966,23 @@ class CantKillServer(Message):
     def __repr__(self) -> str:
         return 'CantKillServer(source={}, target={})'.format(repr(self.source), repr(self.target))
 
+    @classmethod
+    def from_line(cls, line: Line, decode: typing.Callable[[bytes], str] = lambda b: b.decode("utf-8")) -> Message:
+        source = None
+        if line.source is not None:
+            source = decode(line.source)
+        if line.command != 483:
+            raise ValueError("incorrect verb")
+        if not (len(line.arguments) == 2):
+            raise ValueError("wrong number of arguments")
+        i = 0
+        target = decode(line.arguments[i])
+        i += 1
+        # line.arguments[i]: "You can't kill a server!"
+        i += 1
+        assert i == len(line.arguments)
+        return cls(source=source, target=target)
+
     def to_line(self, encode: typing.Callable[[str], bytes] = lambda s: s.encode("utf-8")) -> Line:
         source = None
         if self.source is not None:
@@ -7183,6 +8006,23 @@ class Restricted(Message):
 
     def __repr__(self) -> str:
         return 'Restricted(source={}, target={})'.format(repr(self.source), repr(self.target))
+
+    @classmethod
+    def from_line(cls, line: Line, decode: typing.Callable[[bytes], str] = lambda b: b.decode("utf-8")) -> Message:
+        source = None
+        if line.source is not None:
+            source = decode(line.source)
+        if line.command != 484:
+            raise ValueError("incorrect verb")
+        if not (len(line.arguments) == 2):
+            raise ValueError("wrong number of arguments")
+        i = 0
+        target = decode(line.arguments[i])
+        i += 1
+        # line.arguments[i]: 'Your connection is restricted!'
+        i += 1
+        assert i == len(line.arguments)
+        return cls(source=source, target=target)
 
     def to_line(self, encode: typing.Callable[[str], bytes] = lambda s: s.encode("utf-8")) -> Line:
         source = None
@@ -7208,6 +8048,23 @@ class UniqOpPrivsNeeded(Message):
     def __repr__(self) -> str:
         return 'UniqOpPrivsNeeded(source={}, target={})'.format(repr(self.source), repr(self.target))
 
+    @classmethod
+    def from_line(cls, line: Line, decode: typing.Callable[[bytes], str] = lambda b: b.decode("utf-8")) -> Message:
+        source = None
+        if line.source is not None:
+            source = decode(line.source)
+        if line.command != 485:
+            raise ValueError("incorrect verb")
+        if not (len(line.arguments) == 2):
+            raise ValueError("wrong number of arguments")
+        i = 0
+        target = decode(line.arguments[i])
+        i += 1
+        # line.arguments[i]: "You're not the original channel operator"
+        i += 1
+        assert i == len(line.arguments)
+        return cls(source=source, target=target)
+
     def to_line(self, encode: typing.Callable[[str], bytes] = lambda s: s.encode("utf-8")) -> Line:
         source = None
         if self.source is not None:
@@ -7231,6 +8088,23 @@ class NoOperHost(Message):
 
     def __repr__(self) -> str:
         return 'NoOperHost(source={}, target={})'.format(repr(self.source), repr(self.target))
+
+    @classmethod
+    def from_line(cls, line: Line, decode: typing.Callable[[bytes], str] = lambda b: b.decode("utf-8")) -> Message:
+        source = None
+        if line.source is not None:
+            source = decode(line.source)
+        if line.command != 491:
+            raise ValueError("incorrect verb")
+        if not (len(line.arguments) == 2):
+            raise ValueError("wrong number of arguments")
+        i = 0
+        target = decode(line.arguments[i])
+        i += 1
+        # line.arguments[i]: 'No O-lines for your host'
+        i += 1
+        assert i == len(line.arguments)
+        return cls(source=source, target=target)
 
     def to_line(self, encode: typing.Callable[[str], bytes] = lambda s: s.encode("utf-8")) -> Line:
         source = None
@@ -7256,6 +8130,23 @@ class UserModeUnknownFlag(Message):
     def __repr__(self) -> str:
         return 'UserModeUnknownFlag(source={}, target={})'.format(repr(self.source), repr(self.target))
 
+    @classmethod
+    def from_line(cls, line: Line, decode: typing.Callable[[bytes], str] = lambda b: b.decode("utf-8")) -> Message:
+        source = None
+        if line.source is not None:
+            source = decode(line.source)
+        if line.command != 501:
+            raise ValueError("incorrect verb")
+        if not (len(line.arguments) == 2):
+            raise ValueError("wrong number of arguments")
+        i = 0
+        target = decode(line.arguments[i])
+        i += 1
+        # line.arguments[i]: 'Unknown MODE flag'
+        i += 1
+        assert i == len(line.arguments)
+        return cls(source=source, target=target)
+
     def to_line(self, encode: typing.Callable[[str], bytes] = lambda s: s.encode("utf-8")) -> Line:
         source = None
         if self.source is not None:
@@ -7280,6 +8171,23 @@ class UsersDontMatch(Message):
     def __repr__(self) -> str:
         return 'UsersDontMatch(source={}, target={})'.format(repr(self.source), repr(self.target))
 
+    @classmethod
+    def from_line(cls, line: Line, decode: typing.Callable[[bytes], str] = lambda b: b.decode("utf-8")) -> Message:
+        source = None
+        if line.source is not None:
+            source = decode(line.source)
+        if line.command != 502:
+            raise ValueError("incorrect verb")
+        if not (len(line.arguments) == 2):
+            raise ValueError("wrong number of arguments")
+        i = 0
+        target = decode(line.arguments[i])
+        i += 1
+        # line.arguments[i]: 'Cannot change mode for other users'
+        i += 1
+        assert i == len(line.arguments)
+        return cls(source=source, target=target)
+
     def to_line(self, encode: typing.Callable[[str], bytes] = lambda s: s.encode("utf-8")) -> Line:
         source = None
         if self.source is not None:
@@ -7290,3 +8198,186 @@ class UsersDontMatch(Message):
         return Line(source, b"502", arguments)
 
 
+from_lines_by_verb = {
+    b'PASS': Pass.from_line,
+    b'NICK': Nick.from_line,
+    b'USER': User.from_line,
+    b'OPER': Oper.from_line,
+    b'MODE': Mode.from_line,
+    b'SERVICE': Service.from_line,
+    b'QUIT': Quit.from_line,
+    b'SQUIT': SQuit.from_line,
+    b'JOIN': ChannelJoin.from_line,
+    b'PART': ChannelPart.from_line,
+    b'TOPIC': Topic.from_line,
+    b'NAMES': Names.from_line,
+    b'LIST': List.from_line,
+    b'INVITE': Invite.from_line,
+    b'KICK': Kick.from_line,
+    b'PRIVMSG': Privmsg.from_line,
+    b'NOTICE': Notice.from_line,
+    b'MOTD': Motd.from_line,
+    b'LUSERS': Lusers.from_line,
+    b'VERSION': Version.from_line,
+    b'STATS': Stats.from_line,
+    b'LINKS': Links.from_line,
+    b'TIME': Time.from_line,
+    b'CONNECT': ServerConnect.from_line,
+    b'TRACE': Trace.from_line,
+    b'ADMIN': Admin.from_line,
+    b'INFO': Info.from_line,
+    b'SERVLIST': ServList.from_line,
+    b'SQUERY': SQuery.from_line,
+    b'WHO': Who.from_line,
+    b'WHOIS': WhoIs.from_line,
+    b'WHOWAS': WhoWas.from_line,
+    b'KILL': Kill.from_line,
+    b'PING': Ping.from_line,
+    b'PONG': Pong.from_line,
+    b'ERROR': Error.from_line,
+    b'AWAY': Away.from_line,
+    b'REHASH': Rehash.from_line,
+    b'DIE': Die.from_line,
+    b'RESTART': Restart.from_line,
+    b'SUMMON': Summon.from_line,
+    b'USERS': Users.from_line,
+    b'WALLOPS': WallOps.from_line,
+    b'USERHOST': UserHost.from_line,
+    b'ISON': IsOn.from_line,
+    1: Welcome.from_line,
+    2: YourHost.from_line,
+    3: Created.from_line,
+    4: MyInfo.from_line,
+    5: Bounce.from_line,
+    200: TraceLinkReply.from_line,
+    201: TraceConnecting.from_line,
+    202: TraceHandshake.from_line,
+    203: TraceUnknown.from_line,
+    204: TraceOperator.from_line,
+    205: TraceUser.from_line,
+    206: TraceServer.from_line,
+    207: TraceService.from_line,
+    208: TraceNewtype.from_line,
+    209: TraceClass.from_line,
+    211: StatsLinkInfo.from_line,
+    212: StatsCommands.from_line,
+    219: StatsEnd.from_line,
+    221: UserModeIs.from_line,
+    234: ServListReply.from_line,
+    235: ServListEnd.from_line,
+    242: StatsUptime.from_line,
+    243: StatsOline.from_line,
+    251: LuserClient.from_line,
+    252: LuserOp.from_line,
+    253: LuserUnknown.from_line,
+    254: LuserChannels.from_line,
+    255: LuserMe.from_line,
+    256: AdminMe.from_line,
+    257: AdminLoc1.from_line,
+    258: AdminLoc2.from_line,
+    259: AdminEmail.from_line,
+    261: TraceLog.from_line,
+    262: TraceEnd.from_line,
+    263: TryAgain.from_line,
+    301: AwayReply.from_line,
+    302: UserHostReply.from_line,
+    303: IsOnReply.from_line,
+    305: UnawayReply.from_line,
+    306: NowAwayReply.from_line,
+    311: WhoIsUser.from_line,
+    312: WhoIsServer.from_line,
+    313: WhoIsOperator.from_line,
+    314: WhoWasUser.from_line,
+    315: WhoEnd.from_line,
+    317: WhoIsIdle.from_line,
+    318: WhoIsEnd.from_line,
+    319: WhoIsChannels.from_line,
+    322: ListReply.from_line,
+    323: ListEnd.from_line,
+    324: ChannelModeIs.from_line,
+    325: UniqOpIs.from_line,
+    331: NoTopicReply.from_line,
+    332: TopicReply.from_line,
+    341: Inviting.from_line,
+    342: Summoning.from_line,
+    346: InviteList.from_line,
+    347: InviteListEnd.from_line,
+    348: ExceptList.from_line,
+    349: ExceptListEnd.from_line,
+    351: VersionReply.from_line,
+    352: WhoReply.from_line,
+    353: NamesReply.from_line,
+    364: LinksReply.from_line,
+    365: LinksEnd.from_line,
+    366: NamesEnd.from_line,
+    367: BanList.from_line,
+    368: BanListEnd.from_line,
+    369: WhoWasEnd.from_line,
+    371: InfoReply.from_line,
+    372: MotdText.from_line,
+    374: InfoEnd.from_line,
+    375: MotdStart.from_line,
+    376: MotdEnd.from_line,
+    381: YoureOper.from_line,
+    382: Rehashing.from_line,
+    383: YoureService.from_line,
+    391: TimeReply.from_line,
+    392: UsersStart.from_line,
+    393: UsersReply.from_line,
+    394: UsersEnd.from_line,
+    395: NoUsers.from_line,
+    401: NoSuchNick.from_line,
+    402: NoSuchServer.from_line,
+    403: NoSuchChannel.from_line,
+    404: CantSendToChan.from_line,
+    405: TooManyChannels.from_line,
+    406: WasNoSuchNick.from_line,
+    407: TooManyTargets.from_line,
+    408: NoSuchService.from_line,
+    409: NoOrigin.from_line,
+    411: NoRecipient.from_line,
+    412: NoTextToSend.from_line,
+    413: NoTopLevel.from_line,
+    414: WildTopLevel.from_line,
+    415: BadMask.from_line,
+    421: UnknownCommand.from_line,
+    422: NoMotd.from_line,
+    423: NoAdminInfo.from_line,
+    424: FileError.from_line,
+    431: NoNicknameGiven.from_line,
+    432: ErroneusNickname.from_line,
+    433: NicknameInUse.from_line,
+    436: NickCollision.from_line,
+    437: UnavailResource.from_line,
+    441: UserNotInChannel.from_line,
+    442: NotOnChannel.from_line,
+    443: UserOnChannel.from_line,
+    444: NoLogin.from_line,
+    445: SummonDisabled.from_line,
+    446: UsersDisabled.from_line,
+    451: NotRegistered.from_line,
+    461: NeedMoreParams.from_line,
+    462: AlreadyRegistered.from_line,
+    463: NoPermForHost.from_line,
+    464: PasswordMismatch.from_line,
+    465: YoureBannedCreep.from_line,
+    466: YouWillBeBanned.from_line,
+    467: KeySet.from_line,
+    471: ChannelIsFull.from_line,
+    472: UnknownMode.from_line,
+    473: InviteOnlyChan.from_line,
+    474: BannedFromChan.from_line,
+    475: BadChannelKey.from_line,
+    476: BadChanMask.from_line,
+    477: NoChanModes.from_line,
+    478: BanListFull.from_line,
+    481: NoPrivileges.from_line,
+    482: ChanOpPrivsNeeded.from_line,
+    483: CantKillServer.from_line,
+    484: Restricted.from_line,
+    485: UniqOpPrivsNeeded.from_line,
+    491: NoOperHost.from_line,
+    501: UserModeUnknownFlag.from_line,
+    502: UsersDontMatch.from_line,
+
+}

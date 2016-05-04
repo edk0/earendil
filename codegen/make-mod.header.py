@@ -6,7 +6,7 @@
 #########################################
 
 import typing
-from .line import Line, parse_line
+from .line import Line
 
 #
 # This file has been generated from the Earendil IRC Protocol Specification,
@@ -22,6 +22,18 @@ class Message:
     def to_raw(self, encode: typing.Callable[[str], bytes] = lambda s: s.encode('utf-8')) -> bytes:
         return self.to_line().to_raw()
 
+    @classmethod
+    def from_line(cls, line: Line, decode: typing.Callable[[bytes], str] = lambda b: b.decode('utf-8')) -> 'Message':
+        global from_lines_by_verb
+        try:
+            return from_lines_by_verb[line.command](line, decode)
+        except Exception:
+            return Unknown.from_line(line, decode)
+
+    @classmethod
+    def from_raw(cls, line: bytes, decode: typing.Callable[[bytes], str] = lambda b: b.decode('utf-8')) -> 'Message':
+        return cls.from_line(Line.from_raw(line), decode)
+
 class Unknown(Message):
     __slots__ = ['command', 'arguments']
 
@@ -36,11 +48,18 @@ class Unknown(Message):
             source = encode(self.source)
         return Line(source, self.command, self.arguments)
 
+    @classmethod
+    def from_line(cls, line: Line, decode: typing.Callable[[bytes], str] = lambda b: b.decode('utf-8')) -> Message:
+        source = None
+        if line.source is not None:
+            try:
+                source = decode(line.source)
+            except Exception:
+                pass
+        return cls(source, line.command, line.arguments)
+
     def __repr__(self) -> str:
         return "Unknown(source={{}}, command={{}}, arguments={{}})".format(repr(self.source), repr(self.command), repr(self.arguments))
-
-def parse_line_message(line: bytes, decode: typing.Callable[[bytes], str] = lambda b: b.decode('utf-8')) -> Message:
-    return parse_message(parse_line(line), decode)
 
 #
 # make-mod.header.py above ^

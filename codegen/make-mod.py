@@ -7,7 +7,8 @@ import os.path
 from contextlib import contextmanager
 
 reserved_words = {
-    'class': 'cls',
+    'class': 'klass',
+    'cls': 'kls',
     'data': 'dat',
     'source': 'src',
     'bytes': 'bytecount',
@@ -90,12 +91,12 @@ def unparse_arg(src, arg):
     else:
         raise RuntimeError('unknown type: {}'.format(arg['type']))
 
-def parse_arg_to(ind, src, arg, prefix):
+def parse_arg_to(ind, src, arg):
     if 'name' in arg:
-        ind.writeln('{}_{} = {}', prefix, arg['name'], parse_arg(src, arg))
+        ind.writeln('{} = {}', arg['name'], parse_arg(src, arg))
     else:
         assert arg['type'] == 'literal'
-        ind.writeln('# {}_{}: {}', prefix, src, repr(arg['type-argument']))
+        ind.writeln('# {}: {}', src, repr(arg['type-argument']))
 
 def data_to_module(data, f):
     with open(os.path.join(os.path.split(__file__)[0], 'make-mod.header.py')) as j:
@@ -112,78 +113,6 @@ def data_to_module(data, f):
             if 'name' in arg:
                 arg['name'] = name_snake(arg['name'])
 
-    # turn a line into a message, if possible
-    ind.writeln('def parse_message(line: Line, decode: typing.Callable[[bytes], str] = lambda b: b.decode("utf-8")) -> Message:')
-    with ind.indent():
-        ind.writeln('try:')
-        with ind.indent():
-            ind.writeln('source = None')
-            ind.writeln('if line.source is not None:')
-            with ind.indent():
-                ind.writeln('source = decode(line.source)')
-        ind.writeln('except Exception:')
-        with ind.indent():
-            ind.writeln('source = None')
-        for msg in data['messages']:
-            # figure out the min and max number of args
-            min_args = 0
-            max_args = 0
-            for arg in msg['arguments']:
-                max_args += 1
-                if arg['type'] != 'optional':
-                    min_args += 1
-            arg_cmp = '{} <= len(line.arguments) <= {}'.format(min_args, max_args)
-            if min_args == 0:
-                arg_cmp = 'len(line.arguments) <= {}'.format(max_args)
-            if min_args == max_args:
-                arg_cmp = 'len(line.arguments) == {}'.format(min_args)
-            verb = 'b{}'.format(repr(msg['verb']))
-            if isinstance(msg['verb'], int):
-                verb = '{}'.format(msg['verb'])
-            ind.writeln('if line.command == {} and {}: # {}', verb, arg_cmp, msg['clsname'])
-            with ind.indent():
-                ind.writeln('try:')
-                with ind.indent():
-                    if msg['arguments']:
-                        advancer = 'i += 1'
-                        if msg['associativity'] == 'right':
-                            ind.writeln('i = len(line.arguments) - 1')
-                            advancer = 'i -= 1'
-                        else:
-                            ind.writeln('i = 0')
-                    for arg in msg['arguments']:
-                        if arg['type'] == 'optional':
-                            ind.writeln('if len(line.arguments) > {}:', min_args)
-                            min_args += 1
-                            with ind.indent():
-                                parse_arg_to(ind, 'line.arguments[i]', arg, msg['name'])
-                                ind.writeln(advancer)
-                            if 'name' in arg:
-                                ind.writeln('else:')
-                                with ind.indent():
-                                    defval = 'None'
-                                    if arg['inner']['type'] == 'flag':
-                                        defval = 'False'
-                                    ind.writeln('{}_{} = {}', msg['name'], arg['name'], defval)
-                        else:
-                            parse_arg_to(ind, 'line.arguments[i]', arg, msg['name'])
-                            ind.writeln(advancer)
-                    if msg['arguments']:
-                        if msg['associativity'] == 'right':
-                            ind.writeln('assert i == -1')
-                        else:
-                            ind.writeln('assert i == len(line.arguments)')
-                    constrargs = 'source=source'
-                    for arg in msg['arguments']:
-                        if not 'name' in arg:
-                            continue
-                        constrargs += ', {0}={1}_{0}'.format(arg['name'], msg['name'])
-                    ind.writeln('return {}({})', msg['clsname'], constrargs)
-                ind.writeln('except Exception:')
-                with ind.indent():
-                    ind.writeln('pass')
-        ind.writeln('return Unknown(source, line.command, line.arguments)')
-    
     # classes
     for msg in data['messages']:
         ind.writeln('class {}(Message):', msg['clsname'])
@@ -229,6 +158,68 @@ def data_to_module(data, f):
                 fmt += ')'
                 ind.writeln('return {}.format({})', repr(fmt), args)
 
+            # from_line
+            ind.writeln('@classmethod')
+            ind.writeln('def from_line(cls, line: Line, decode: typing.Callable[[bytes], str] = lambda b: b.decode("utf-8")) -> Message:')
+            with ind.indent():
+                ind.writeln('source = None')
+                ind.writeln('if line.source is not None:')
+                with ind.indent():
+                    ind.writeln('source = decode(line.source)')
+                # figure out the min and max number of args
+                min_args = 0
+                max_args = 0
+                for arg in msg['arguments']:
+                    max_args += 1
+                    if arg['type'] != 'optional':
+                        min_args += 1
+                arg_cmp = '{} <= len(line.arguments) <= {}'.format(min_args, max_args)
+                if min_args == 0:
+                    arg_cmp = 'len(line.arguments) <= {}'.format(max_args)
+                if min_args == max_args:
+                    arg_cmp = 'len(line.arguments) == {}'.format(min_args)
+                verb = 'b{}'.format(repr(msg['verb']))
+                if isinstance(msg['verb'], int):
+                    verb = '{}'.format(msg['verb'])
+                ind.writeln('if line.command != {}:', verb)
+                with ind.indent():
+                    ind.writeln('raise ValueError("incorrect verb")')
+                ind.writeln('if not ({}):', arg_cmp)
+                with ind.indent():
+                    ind.writeln('raise ValueError("wrong number of arguments")')
+                if msg['arguments']:
+                    advancer = 'i += 1'
+                    done = 'i == len(line.arguments)'
+                    if msg['associativity'] == 'right':
+                        ind.writeln('i = len(line.arguments) - 1')
+                        advancer = 'i -= 1'
+                        done = 'i == -1'
+                    else:
+                        ind.writeln('i = 0')
+                for arg in msg['arguments']:
+                    if arg['type'] == 'optional':
+                        ind.writeln('if len(line.arguments) > {}:', min_args)
+                        min_args += 1
+                        with ind.indent():
+                            parse_arg_to(ind, 'line.arguments[i]', arg)
+                            ind.writeln(advancer)
+                        if 'name' in arg:
+                            ind.writeln('else:')
+                            with ind.indent():
+                                defval = 'None'
+                                if arg['inner']['type'] == 'flag':
+                                    defval = 'False'
+                                ind.writeln('{} = {}', arg['name'], defval)
+                    else:
+                        parse_arg_to(ind, 'line.arguments[i]', arg)
+                        ind.writeln(advancer)
+                if msg['arguments']:
+                    ind.writeln('assert {}', done)
+                constrargs = 'source=source'
+                for arg in namedargs:
+                    constrargs += ', {0}={0}'.format(arg['name'])
+                ind.writeln('return cls({})', constrargs)
+
             # to_line
             ind.writeln('def to_line(self, encode: typing.Callable[[str], bytes] = lambda s: s.encode("utf-8")) -> Line:')
             with ind.indent():
@@ -256,6 +247,16 @@ def data_to_module(data, f):
                     ind.writeln('return Line(source, {}, arguments)', verb)
                 else:
                     ind.writeln('return Line(source, {})', verb)
+
+    # verbmap
+    ind.writeln('from_lines_by_verb = {{')
+    with ind.indent():
+        for msg in data['messages']:
+            verb = 'b{}'.format(repr(msg['verb']))
+            if isinstance(msg['verb'], int):
+                verb = '{}'.format(msg['verb'])
+            ind.writeln('{}: {}.from_line,', verb, msg['clsname'])
+    ind.writeln('}}')    
 
 p = argparse.ArgumentParser()
 p.add_argument('input', type=argparse.FileType('r'))
