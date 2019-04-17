@@ -116,11 +116,11 @@ def parse_format(fmt, data):
         tokens.append(gather)
     if expectstack:
         warn('unbalanced brackets, expecting: {}'.format(expectstack))
-    
+
     # there should be at least a verb
     if not tokens:
         warn('no verb found')
-    
+
     verb = tokens[0]
     args = tokens[1:]
     data['verb'] = check_verb(verb)
@@ -166,7 +166,7 @@ def parse_format(fmt, data):
 section_names = []
 def check_section(title, data):
     required = ['name']
-    
+
     # must have these fields
     for k in required:
         if not k in data:
@@ -175,7 +175,7 @@ def check_section(title, data):
 
     # validate name
     data['name'] = check_name(data['name'])
-    
+
     # section names must be unique
     if data['name'] in section_names:
         warn('non-unique section name: {}'.format(data['name']))
@@ -183,14 +183,14 @@ def check_section(title, data):
 
     # add title
     data['title'] = title
-    
+
     return data
 
 message_names = []
 message_verbs = {}
 def check_message(fmt, data):
     required = ['name']
-    
+
     # must have these fields
     for k in required:
         if not k in data:
@@ -244,7 +244,7 @@ def check_whole(data):
                 resolved_rel.append(message_verbs[rel])
         if resolved_rel:
             msg['related'] = resolved_rel
-    
+
     return data
 
 def create_description(f, fname):
@@ -263,7 +263,7 @@ def create_description(f, fname):
         'Section': ['name', 'url'],
         'Message': ['name', 'related', 'documentation'],
     }
-    
+
     warnings = 0
     def local_warn(s):
         nonlocal warnings
@@ -301,7 +301,7 @@ def create_description(f, fname):
 
     for l in f.readlines():
         lineno += 1
-        
+
         if l.strip().startswith('#'):
             # comment
             continue
