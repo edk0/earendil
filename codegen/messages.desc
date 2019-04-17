@@ -38,27 +38,27 @@ related: 481, 402, 461
 Section: 3.2 Channel Operations
 name: channels
 
-Message: JOIN <channels,> [keys,]
+Message: JOIN <#channels,> [keys,]
 name: channel-join
 related: 461, 474, 473, 475, 471, 476, 403, 405, 407, 437, 332
 
-Message: PART <channels,> [message]
+Message: PART <#channels,> [message]
 name: channel-part
 related: 461, 403, 442
 
-Message: TOPIC <channel> [topic]
+Message: TOPIC <#channel> [topic]
 name: topic
 related: 461, 442, 331, 332, 482, 477
 
-Message: NAMES [channels,] [target]
+Message: NAMES [#channels,] [target]
 name: names
 related: 402, 353, 366
 
-Message: LIST [channels,] [target]
+Message: LIST [#channels,] [target]
 name: list
 related: 402, 322, 323
 
-Message: INVITE <nickname> <channel>
+Message: INVITE <nickname> <#channel>
 name: invite
 related: 461, 401, 442, 443, 482, 341, 301
 
@@ -351,52 +351,52 @@ name: who-is-idle
 Message: 318 <target> <nickname> :End of WHOIS list
 name: who-is-end
 
-Message: 319 <target> <nickname> <channels>
+Message: 319 <target> <nickname> <#channels>
 name: who-is-channels
 
-Message: 322 <target> <channel> <int:visible> <topic>
+Message: 322 <target> <#channel> <int:visible> <topic>
 name: list-reply
 
 Message: 323 <target> :End of LIST
 name: list-end
 
-Message: 324 <target> <channel> <mode> <params>
+Message: 324 <target> <#channel> <mode> <params>
 name: channel-mode-is
 
-Message: 325 <target> <channel> <nickname>
+Message: 325 <target> <#channel> <nickname>
 name: uniq-op-is
 
-Message: 331 <target> <channel> :No topic is set
+Message: 331 <target> <#channel> :No topic is set
 name: no-topic-reply
 
-Message: 332 <target> <channel> <topic>
+Message: 332 <target> <#channel> <topic>
 name: topic-reply
 
-Message: 341 <target> <channel> <nick>
+Message: 341 <target> <#channel> <nick>
 name: inviting
 
 Message: 342 <target> <user> :Summoning user to IRC
 name: summoning
 
-Message: 346 <target> <channel> <mask>
+Message: 346 <target> <#channel> <mask>
 name: invite-list
 
-Message: 347 <target> <channel> :End of channel invite list
+Message: 347 <target> <#channel> :End of channel invite list
 name: invite-list-end
 
-Message: 348 <target> <channel> <mask>
+Message: 348 <target> <#channel> <mask>
 name: except-list
 
-Message: 349 <target> <channel> :End of channel exception list
+Message: 349 <target> <#channel> :End of channel exception list
 name: except-list-end
 
 Message: 351 <target> <version> <server> <comments>
 name: version-reply
 
-Message: 352 <target> <channel> <user> <host> <server> <nickname> <props> <realname>
+Message: 352 <target> <#channel> <user> <host> <server> <nickname> <props> <realname>
 name: who-reply
 
-Message: 353 <target> <mode> <channel> <nicknames_>
+Message: 353 <target> <mode> <#channel> <nicknames_>
 name: names-reply
 
 Message: 364 <target> <mask> <server> <info>
@@ -405,13 +405,13 @@ name: links-reply
 Message: 365 <target> <mask> :End of LINKS list
 name: links-end
 
-Message: 366 <target> <channel> :End of NAMES list
+Message: 366 <target> <#channel> :End of NAMES list
 name: names-end
 
-Message: 367 <target> <channel> <mask>
+Message: 367 <target> <#channel> <mask>
 name: ban-list
 
-Message: 368 <target> <channel> :End of channel ban list
+Message: 368 <target> <#channel> :End of channel ban list
 name: ban-list-end
 
 Message: 369 <target> <nickname> :End of WHOWAS
@@ -465,13 +465,13 @@ name: no-such-nick
 Message: 402 <target> <server> :No such server
 name: no-such-server
 
-Message: 403 <target> <channel> :No such channel
+Message: 403 <target> <#channel> :No such channel
 name: no-such-channel
 
-Message: 404 <target> <channel> :Cannot send to channel
+Message: 404 <target> <#channel> :Cannot send to channel
 name: cant-send-to-chan
 
-Message: 405 <target> <channel> :You have joined too many channels
+Message: 405 <target> <#channel> :You have joined too many channels
 name: too-many-channels
 
 Message: 406 <target> <nickname> :There was no such nickname
@@ -528,13 +528,13 @@ name: nick-collision
 Message: 437 <target> <name> :Nick/channel is temporarily unavailable
 name: unavail-resource
 
-Message: 441 <target> <nickname> <channel> :They aren't on that channel
+Message: 441 <target> <nickname> <#channel> :They aren't on that channel
 name: user-not-in-channel
 
-Message: 442 <target> <channel> :You're not on that channel
+Message: 442 <target> <#channel> :You're not on that channel
 name: not-on-channel
 
-Message: 443 <target> <user> <channel> :is already on channel
+Message: 443 <target> <user> <#channel> :is already on channel
 name: user-on-channel
 
 Message: 444 <target> <user> :User not logged in
@@ -567,37 +567,37 @@ name: youre-banned-creep
 Message: 466 <target>
 name: you-will-be-banned
 
-Message: 467 <target> <channel> :Channel key already set
+Message: 467 <target> <#channel> :Channel key already set
 name: key-set
 
-Message: 471 <target> <channel> :Cannot join channel (+l)
+Message: 471 <target> <#channel> :Cannot join channel (+l)
 name: channel-is-full
 
 Message: 472 <target> <char> :is unknown mode char to me
 name: unknown-mode
 
-Message: 473 <target> <channel> :Cannot join channel (+i)
+Message: 473 <target> <#channel> :Cannot join channel (+i)
 name: invite-only-chan
 
-Message: 474 <target> <channel> :Cannot join channel (+b)
+Message: 474 <target> <#channel> :Cannot join channel (+b)
 name: banned-from-chan
 
-Message: 475 <target> <channel> :Cannot join channel (+k)
+Message: 475 <target> <#channel> :Cannot join channel (+k)
 name: bad-channel-key
 
-Message: 476 <target> <channel> :Bad Channel Mask
+Message: 476 <target> <#channel> :Bad Channel Mask
 name: bad-chan-mask
 
-Message: 477 <target> <channel> :Channel doesn't support modes
+Message: 477 <target> <#channel> :Channel doesn't support modes
 name: no-chan-modes
 
-Message: 478 <target> <channel> <char> :Channel list is full
+Message: 478 <target> <#channel> <char> :Channel list is full
 name: ban-list-full
 
 Message: 481 <target> :Permission Denied- You're not an IRC operator
 name: no-privileges
 
-Message: 482 <target> <channel> :You're not channel operator
+Message: 482 <target> <#channel> :You're not channel operator
 name: chan-op-privs-needed
 
 Message: 483 <target> :You can't kill a server!

@@ -20,6 +20,8 @@ def parse_inner_arg(arg, ret):
         return dict(type='comma-list', inner=parse_inner_arg(arg[:-1], ret))
     elif arg.endswith('_'):
         return dict(type='space-list', inner=parse_inner_arg(arg[:-1], ret))
+    elif arg.startswith('#'):
+        typ, arg = 'channel', arg[1:]
     elif ':' in arg:
         typ, arg = arg.split(':', 1)
     else:
@@ -35,7 +37,7 @@ def parse_inner_arg(arg, ret):
             warn('type does not take argument: {}'.format(typ))
 
     # make sure the type is known
-    if not typ in ['str', 'int', 'flag', 'literal']:
+    if not typ in ['str', 'int', 'flag', 'literal', 'channel']:
         warn('unknown type: {}'.format(typ))
 
     data['type'] = typ
